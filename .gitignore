@@ -1,0 +1,8 @@
+*.in
+*.m4
+configure
+autom4te.cache/
+compile
+install-sh
+missing
+depcomp
