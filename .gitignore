@@ -11,3 +11,5 @@ Makefile
 *.o
 config.log
 config.status
+src/budget_app
+
