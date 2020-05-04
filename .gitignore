@@ -6,3 +6,8 @@ compile
 install-sh
 missing
 depcomp
+Makefile
+*.deps/
+*.o
+config.log
+config.status
