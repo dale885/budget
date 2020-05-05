@@ -6,3 +6,10 @@ compile
 install-sh
 missing
 depcomp
+src/.deps/
+Makefile
+config.log
+config.status
+*.o
+src/budget_app
+
