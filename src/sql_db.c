@@ -10,10 +10,21 @@
 
 #include <sql_db.h>
 #include <log.h>
+#include <error.h>
 
 #define DB_FILE_PATH "db/budget.db"
 #define DB_COUNT_RESULT_QUERY "SELECT COUNT(*) FROM (%s);"
 #define DIR_PERM S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
+
+static int32_t sqlite_error_to_error(int32_t sqlite_error)
+{
+	switch(sqlite_error) {
+		case SQLITE_BUSY:
+			return ERR_BUSY;
+		default:
+			return ERR_KO;
+	}
+}
 
 static int32_t create_db_directory(const char* path)
 {
@@ -26,10 +37,10 @@ static int32_t create_db_directory(const char* path)
 		rc = mkdir(path, DIR_PERM);
 		if (0 != rc) {
 			ERR_LOG("Failed to create directory [%s]: %m", path);
-			return rc;
+			return ERR_KO;
 		}
 	}
-	return 0;
+	return ERR_OK;
 }
 
 static void get_full_path(char** full_path, const char* dir_path)
@@ -94,11 +105,11 @@ static int32_t bind_params(sqlite3_stmt* stmt, uint32_t num_params, struct query
 		{
 			ERR_LOG("Failed to bind value to parameter [%s]: %d",
 				param->name, rc);
-			return rc;
+			return sqlite_error_to_error(rc);
 		}
 	}
 
-	return 0;
+	return ERR_OK;
 }
 
 static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt)
@@ -106,7 +117,7 @@ static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt
 	int32_t rc = sqlite3_prepare_v2(query->db, query->query, -1, stmt, NULL);
 	if (SQLITE_OK != rc) {
 		ERR_LOG("Failed to prepare query [%s]: %d", query->query, rc);
-		return rc;
+		return sqlite_error_to_error(rc);
 	}
 
 	if (0 < query->num_params)
@@ -117,11 +128,11 @@ static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt
 			ERR_LOG("Failed to bind params to query [%s]", query->query);
 			sqlite3_finalize(*stmt);
 			*stmt = NULL;
-			return rc;
+			return sqlite_error_to_error(rc);
 		}
 	}
 
-	return rc;
+	return ERR_OK;
 }
 
 static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
@@ -138,7 +149,7 @@ static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 		if (SQLITE_ROW == rc) {
 			if (!result->values) {
 				ERR_LOG("Result rows have not been allocated");
-				return rc;
+				return ERR_INVALID;
 			}
 
 			result->num_cols = sqlite3_column_count(stmt);
@@ -148,7 +159,7 @@ static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 
 			if (!value) {
 				ERR_LOG("Failed to allocate db value");
-				return -1;
+				return ERR_NOMEM;
 			}
 
 			for (uint32_t col = 0; col < result->num_cols; ++col) {
@@ -172,6 +183,12 @@ static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 						value[col].value.string_val =
 							(char*)malloc(sizeof(char) * col_len);
 
+						if (!value[col].value.string_val) {
+							ERR_LOG(
+								"Failed to allocate memory for text value");
+							return ERR_NOMEM;
+						}
+
 						strcpy(value[col].value.string_val, col_value);
 						break;
 					default:
@@ -189,11 +206,11 @@ static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 		}
 		else {
 			ERR_LOG("Failed to execute query: [%d]", rc);
-			return rc;
+			return sqlite_error_to_error(rc);
 		}
 	} while (SQLITE_OK != rc && ++rows_processed < result->num_rows);
 
-	return rc;
+	return ERR_OK;
 }
 static int32_t get_num_results(struct db_query* query, struct db_query_result* result)
 {
@@ -205,7 +222,7 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 	char* count_query = (char*)malloc(sizeof(char) * query_len);
 	if (!count_query) {
 		ERR_LOG("Failed to create count query");
-		return -1;
+		return ERR_NOMEM;
 	}
 
 	sqlite3_stmt* stmt = NULL;
@@ -230,7 +247,7 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 	rc = generate_sql_statment(&sql_query, &stmt);
 	if (SQLITE_OK != rc) {
 		ERR_LOG("Failed to generate sql statement: %d", rc);
-		longjmp(buf, rc);
+		longjmp(buf, sqlite_error_to_error(rc));
 	}
 
 	rc = sqlite3_step(stmt);
@@ -238,9 +255,9 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 		ERR_LOG("Failed to get count result: %d", rc);
 		if (SQLITE_OK == rc) {
 			WARN_LOG("Query ran successfully but no data returned");
-			rc = -1;
+			rc = ERR_KO;
 		}
-		longjmp(buf, rc);
+		longjmp(buf, sqlite_error_to_error(rc));
 	}
 
 	result->num_rows = sqlite3_column_int(stmt, 0);
@@ -248,7 +265,7 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 	sqlite3_finalize(stmt);
 	free (count_query);
 
-	return 0;
+	return ERR_OK;
 
 }
 
@@ -266,7 +283,7 @@ int32_t open_db(const char* db_path, sqlite3** db)
 		rc = create_db_directory(db_path);
 		if (0 != rc) {
 			ERR_LOG("Failed to create DB directory [%s]:%d", db_path, rc);
-			longjmp(buf, -1);
+			longjmp(buf, ERR_KO);
 		}
 
 		rc = sqlite3_open_v2(
@@ -275,15 +292,15 @@ int32_t open_db(const char* db_path, sqlite3** db)
 			SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
 			NULL);
 
-		if (0 != rc) {
+		if (SQLITE_OK != rc) {
 			ERR_LOG("Failed to open DB connection to [%s]:%d", full_path, rc);
-			longjmp(buf, -1);
+			longjmp(buf, sqlite_error_to_error(rc));
 		}
 	}
 
 	free(full_path);
 
-	return rc;
+	return ERR_OK;
 }
 
 int32_t close_db(sqlite3* db)
@@ -291,13 +308,13 @@ int32_t close_db(sqlite3* db)
 	NOTICE_LOG("Closing database connection");
 
 	int32_t rc = sqlite3_close(db);
-	if (0 != rc)
+	if (SQLITE_OK != rc)
 	{
-		ERR_LOG("Failed to close database connection");
-		return rc;
+		ERR_LOG("Failed to close database connection: %d", rc);
+		return sqlite_error_to_error(rc);
 	}
 
-	return 0;
+	return ERR_OK;
 }
 
 int32_t execute_query(struct db_query* query, struct db_query_result* result)
@@ -320,7 +337,7 @@ int32_t execute_query(struct db_query* query, struct db_query_result* result)
 		result->values = (struct db_value**)malloc(sizeof(struct db_value*) * result->num_rows);
 		if (!result->values) {
 			ERR_LOG("Failed to allocate result rows");
-			return -1;
+			return ERR_NOMEM;
 		}
 	}
 
@@ -328,14 +345,14 @@ int32_t execute_query(struct db_query* query, struct db_query_result* result)
 
 	sqlite3_stmt *stmt;
 	rc = generate_sql_statment(query, &stmt);
-	if (SQLITE_OK != result)
+	if (ERR_OK != result)
 	{
 		ERR_LOG("Failed to generate sql statement");
 		return rc;
 	}
 
 	rc = handle_result(stmt, result);
-	if (SQLITE_OK != rc)
+	if (ERR_OK != rc)
 	{
 		ERR_LOG("Failed to execute query [%s]: %d", query->query, rc);
 		sqlite3_finalize(stmt);
@@ -345,6 +362,6 @@ int32_t execute_query(struct db_query* query, struct db_query_result* result)
 
 	sqlite3_finalize(stmt);
 
-	return rc;
+	return ERR_OK;
 }
 
