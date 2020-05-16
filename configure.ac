@@ -7,7 +7,7 @@ AC_CONFIG_FILES([
 ])
 
 #Set common flags for app
-AC_SUBST([AM_CFLAGS], ["-g -O2 -Wall -Werror -Iinc"])
+AC_SUBST([AM_CFLAGS], ["-g -O2 -Wall -Werror -Iinc -std=gnu17"])
 AC_SUBST([AM_LDFLAGS], ["-lsqlite3"])
 
 #Check for required libs
