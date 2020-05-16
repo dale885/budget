@@ -5,12 +5,13 @@
 #ifndef LOG_H_
 #define LOG_H_
 
-#include <stdint.h>
 #include <syslog.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
+
 
 #define FILENAME_AND_LINE_FORMATTING "[%s:%d]:"
 
