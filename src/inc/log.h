@@ -44,6 +44,7 @@ static void write_log(int32_t level, const char* msg, ...)
 	if (rc >= len)
 	{
 		syslog(LOG_CRIT, "Unable to format log message");
+		free(message);
 		return;
 	}
 	strcat(message, msg);
@@ -54,6 +55,8 @@ static void write_log(int32_t level, const char* msg, ...)
 	vsyslog(level, message, args);
 
 	va_end(args);
+
+	free(message);
 }
 
 /* Macros to easily handle logging */
