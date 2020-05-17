@@ -16,8 +16,7 @@
 #define DB_COUNT_RESULT_QUERY "SELECT COUNT(*) FROM (%s);"
 #define DIR_PERM S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
 
-static int32_t sqlite_error_to_error(int32_t sqlite_error)
-{
+static int32_t sqlite_error_to_error(int32_t sqlite_error) {
 	switch(sqlite_error) {
 		case SQLITE_BUSY:
 			return ERR_BUSY;
@@ -26,8 +25,7 @@ static int32_t sqlite_error_to_error(int32_t sqlite_error)
 	}
 }
 
-static int32_t create_db_directory(const char* path)
-{
+static int32_t create_db_directory(const char* path) {
 	struct stat st;
 	int32_t rc;
 
@@ -43,8 +41,7 @@ static int32_t create_db_directory(const char* path)
 	return ERR_OK;
 }
 
-static void get_full_path(char** full_path, const char* dir_path)
-{
+static void get_full_path(char** full_path, const char* dir_path) {
 	// add two for directory separator and null terminator
 	int32_t path_length = strlen(dir_path) + strlen(DB_FILE_PATH) + 2;
 
@@ -57,8 +54,7 @@ static void get_full_path(char** full_path, const char* dir_path)
 	strcat(*full_path, DB_FILE_PATH);
 }
 
-static int32_t bind_params(sqlite3_stmt* stmt, uint32_t num_params, struct query_param* params)
-{
+static int32_t bind_params(sqlite3_stmt* stmt, uint32_t num_params, struct query_param* params) {
 	uint32_t i;
 
 	DEBUG_LOG("Binding [%u] parameters", num_params);
@@ -112,8 +108,7 @@ static int32_t bind_params(sqlite3_stmt* stmt, uint32_t num_params, struct query
 	return ERR_OK;
 }
 
-static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt)
-{
+static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt) {
 	int32_t rc = sqlite3_prepare_v2(query->db, query->query, -1, stmt, NULL);
 	if (SQLITE_OK != rc) {
 		ERR_LOG("Failed to prepare query [%s]: %d", query->query, rc);
@@ -135,8 +130,7 @@ static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt
 	return ERR_OK;
 }
 
-static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
-{
+static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result) {
 	if (!result) {
 		INFO_LOG("Result is null. Ignoring results returned from query");
 	}
@@ -212,8 +206,7 @@ static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 
 	return ERR_OK;
 }
-static int32_t get_num_results(struct db_query* query, struct db_query_result* result)
-{
+static int32_t get_num_results(struct db_query* query, struct db_query_result* result) {
 	int32_t query_len = snprintf(
 		NULL,
 		0,
@@ -269,8 +262,7 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 
 }
 
-int32_t open_db(const char* db_path, sqlite3** db)
-{
+int32_t open_db(const char* db_path, sqlite3** db) {
 	char* full_path;
 	get_full_path(&full_path, db_path);
 
@@ -279,23 +271,26 @@ int32_t open_db(const char* db_path, sqlite3** db)
 	jmp_buf buf;
 	int32_t rc = setjmp(buf);
 
-	if (0 == rc) {
-		rc = create_db_directory(db_path);
-		if (0 != rc) {
-			ERR_LOG("Failed to create DB directory [%s]:%d", db_path, rc);
-			longjmp(buf, ERR_KO);
-		}
+	if (0 != rc) {
+		ERR_LOG("Failed to open database connection to [%s]", full_path);
+		free(full_path);
+		return rc;
+	}
 
-		rc = sqlite3_open_v2(
-			full_path,
-			db,
-			SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
-			NULL);
+	rc = create_db_directory(db_path);
+	if (0 != rc) {
+		ERR_LOG("Failed to create DB directory [%s]:%d", db_path, rc);
+		longjmp(buf, ERR_KO);
+	}
 
-		if (SQLITE_OK != rc) {
-			ERR_LOG("Failed to open DB connection to [%s]:%d", full_path, rc);
-			longjmp(buf, sqlite_error_to_error(rc));
-		}
+	rc = sqlite3_open_v2(
+		full_path,
+		db,
+		SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+		NULL);
+	if (SQLITE_OK != rc) {
+		ERR_LOG("Failed to open DB connection to [%s]:%d", full_path, rc);
+		longjmp(buf, sqlite_error_to_error(rc));
 	}
 
 	free(full_path);
@@ -303,8 +298,7 @@ int32_t open_db(const char* db_path, sqlite3** db)
 	return ERR_OK;
 }
 
-int32_t close_db(sqlite3* db)
-{
+int32_t close_db(sqlite3* db) {
 	NOTICE_LOG("Closing database connection");
 
 	int32_t rc = sqlite3_close(db);
@@ -317,8 +311,7 @@ int32_t close_db(sqlite3* db)
 	return ERR_OK;
 }
 
-int32_t execute_query(struct db_query* query, struct db_query_result* result)
-{
+int32_t execute_query(struct db_query* query, struct db_query_result* result) {
 	int32_t rc;
 	if (!query) {
 		ERR_LOG("query is null");

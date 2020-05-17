@@ -10,16 +10,24 @@ rm config.log
 rm config.status
 rm configure
 rm depcomp
-rm install.sh
 rm Makefile
 rm Makefile.in
 rm missing
+rm install-sh
 
-for dir in src,tests,Unity; do
+for dir in src tests Unity; do
 
-	rm $dir/Makefile
-	rm $dir/Makefile.in
+	if [[ -f $dir/Makefile ]]; then
+		rm $dir/Makefile
+	fi
+
+	if [[ -f $dir/Makefile.in ]]; then
+		rm $dir/Makefile.in
+	fi
+
+	if [[ -d $dir/build ]]; then
+		rm -r $dir/build
+	fi
 done
 
-rm -fr Unity/build
 
