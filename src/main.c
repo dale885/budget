@@ -7,8 +7,7 @@
 #include <log.h>
 #include <sql_db.h>
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
 	sqlite3* sql;
 
 	(void)argc;

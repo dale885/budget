@@ -18,8 +18,7 @@ static const char* ERR_TO_STRING[] = {
 
 #define MAX_ERROR_NUMBER 6
 
-const char* error_to_string(int32_t err)
-{
+const char* error_to_string(int32_t err) {
 	if (MAX_ERROR_NUMBER < -err) {
 		ERR_LOG("No string found for error [%d]", err);
 		return "";
