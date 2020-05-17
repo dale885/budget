@@ -13,4 +13,5 @@ config.status
 src/budget_app
 tests/example/example_test
 *.deps/
-
+ar-lib
+*.a
