@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #include <log.h>
-#include <sql_db.h>
+#include <sql/sql_db.h>
 
 int main(int argc, char** argv) {
 	sqlite3* sql;

@@ -1,16 +1,18 @@
 AC_INIT([Budget App], [0.1.0], [dale885])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_PROG_CC
+AC_PROG_RANLIB
+AM_PROG_AR
 AC_CONFIG_FILES([
 	Makefile
 	src/Makefile
+	src/sql/Makefile
 	tests/Makefile
 	tests/example/Makefile
 ])
 
 #Set common flags for app
-AC_SUBST([AM_CFLAGS], ["-g -O2 -Wall -Werror -Iinc -std=gnu17"])
-AC_SUBST([AM_LDFLAGS], ["-lsqlite3"])
+AC_SUBST([AM_CFLAGS], ["-g -O2 -Wall -Werror -I$PWD/src/inc -std=gnu17"])
 
 #Check for required libs
 AC_CHECK_HEADER([sqlite3.h], HAVE_SQLITE_HEADER="true",
