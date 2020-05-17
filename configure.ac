@@ -6,6 +6,7 @@ AM_PROG_AR
 AC_CONFIG_FILES([
 	Makefile
 	src/Makefile
+	src/common/Makefile
 	src/sql/Makefile
 	tests/Makefile
 	tests/example/Makefile
