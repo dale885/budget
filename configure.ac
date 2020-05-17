@@ -29,6 +29,6 @@ AC_ARG_ENABLE(
 AM_CONDITIONAL([WITH_UNIT_TESTS], [test "x$enable_unit_tests" = xyes])
 
 AS_IF([test "x$enable_unit_tests" = xyes],
-	AC_SUBST([UNITY_CFLAGS], ["-I$PWD/src/inc -I$PWD/Unity/src -L$PWD/Unity/build"]))
+	AC_SUBST([UNITY_CFLAGS], ["-I$PWD/src/inc -I$PWD/Unity/src -L$PWD/Unity/build -L$PWD/src"]))
 AC_OUTPUT
 
