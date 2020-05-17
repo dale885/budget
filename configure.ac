@@ -9,7 +9,7 @@ AC_CONFIG_FILES([
 	src/common/Makefile
 	src/sql/Makefile
 	tests/Makefile
-	tests/example/Makefile
+	tests/sql/Makefile
 ])
 
 #Set common flags for app
