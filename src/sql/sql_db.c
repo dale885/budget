@@ -271,6 +271,16 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 
 int32_t open_db(const char* db_path, sqlite3** db)
 {
+	if (!db_path) {
+		ERR_LOG("DB path is NULL");
+		return ERR_INVALID;
+	}
+
+	if (!db) {
+		ERR_LOG("DB is NULL");
+		return ERR_INVALID;
+	}
+
 	char* full_path;
 	get_full_path(&full_path, db_path);
 
@@ -279,23 +289,27 @@ int32_t open_db(const char* db_path, sqlite3** db)
 	jmp_buf buf;
 	int32_t rc = setjmp(buf);
 
-	if (0 == rc) {
-		rc = create_db_directory(db_path);
-		if (0 != rc) {
-			ERR_LOG("Failed to create DB directory [%s]:%d", db_path, rc);
-			longjmp(buf, ERR_KO);
-		}
+	if (0 != rc) {
+		ERR_LOG("Failed to open connection to DB [%s]", full_path);
+		free(full_path);
+		return rc;
+	}
 
-		rc = sqlite3_open_v2(
-			full_path,
-			db,
-			SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
-			NULL);
+	rc = create_db_directory(db_path);
+	if (0 != rc) {
+		ERR_LOG("Failed to create DB directory [%s]:%d", db_path, rc);
+		longjmp(buf, ERR_KO);
+	}
 
-		if (SQLITE_OK != rc) {
-			ERR_LOG("Failed to open DB connection to [%s]:%d", full_path, rc);
-			longjmp(buf, sqlite_error_to_error(rc));
-		}
+	rc = sqlite3_open_v2(
+		full_path,
+		db,
+		SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+		NULL);
+
+	if (SQLITE_OK != rc) {
+		ERR_LOG("Failed to open DB connection to [%s]:%d", full_path, rc);
+		longjmp(buf, sqlite_error_to_error(rc));
 	}
 
 	free(full_path);
@@ -322,6 +336,12 @@ int32_t execute_query(struct db_query* query, struct db_query_result* result)
 	int32_t rc;
 	if (!query) {
 		ERR_LOG("query is null");
+		return ERR_INVALID;
+	}
+
+	if (!query->query) {
+		ERR_LOG("SQL query is NULL");
+		return ERR_INVALID;
 	}
 
 	if (result) {
