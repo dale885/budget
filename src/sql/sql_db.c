@@ -7,12 +7,13 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <setjmp.h>
+#include <stdio.h>
 
 #include <sql/sql_db.h>
 #include <log.h>
 #include <error.h>
 
-#define DB_FILE_PATH "db/budget.db"
+#define DB_FILE_PATH "budget.db"
 #define DB_COUNT_RESULT_QUERY "SELECT COUNT(*) FROM (%s);"
 #define DIR_PERM S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
 
@@ -135,6 +136,69 @@ static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt
 	return ERR_OK;
 }
 
+static int32_t handle_result_row(sqlite3_stmt* stmt, struct db_query_result* result) {
+	if (!result->values) {
+		ERR_LOG("Result rows have not been allocated");
+		return ERR_INVALID;
+	}
+
+	uint32_t num_cols = sqlite3_column_count(stmt);
+	if (0 == result->num_cols) {
+		result->num_cols = num_cols;
+	}
+	else if (num_cols != result->num_cols) {
+		ERR_LOG("Columns returned [%d] does not match expected [%d]",
+			num_cols, result->num_cols);
+		return ERR_INVALID;
+	}
+
+	struct db_value* value =
+		(struct db_value*)malloc(
+			sizeof(struct db_value) * result->num_cols);
+
+	if (!value) {
+		ERR_LOG("Failed to allocate db value");
+		return ERR_NOMEM;
+	}
+
+	for (uint32_t col = 0; col < result->num_cols; ++col) {
+		int32_t type = sqlite3_column_type(stmt, col);
+		switch(type) {
+			case SQLITE_INTEGER:
+				value[col].type = INT;
+				value[col].value.int_val =
+					sqlite3_column_int(stmt, col);
+				break;
+			case SQLITE_FLOAT:
+				value[col].type = DOUBLE;
+				value[col].value.double_val =
+					sqlite3_column_double(stmt, col);
+				break;
+			case SQLITE_TEXT:
+				value[col].type = TEXT;
+				const char* col_value =
+					(const char*)sqlite3_column_text(stmt, col);
+				int32_t col_len = sqlite3_column_bytes(stmt, col) + 1;
+				value[col].value.string_val =
+					(char*)malloc(sizeof(char) * col_len);
+
+				if (!value[col].value.string_val) {
+					ERR_LOG(
+						"Failed to allocate memory for text value");
+					return ERR_NOMEM;
+				}
+
+				strcpy(value[col].value.string_val, col_value);
+				break;
+			default:
+				WARN_LOG("Unsupported result type: %d", type);
+				break;
+		}
+	}
+
+	return ERR_OK;
+}
+
 static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 {
 	if (!result) {
@@ -146,69 +210,38 @@ static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 	bool have_retried = false;
 	do {
 		rc = sqlite3_step(stmt);
-		if (SQLITE_ROW == rc) {
-			if (!result->values) {
-				ERR_LOG("Result rows have not been allocated");
-				return ERR_INVALID;
-			}
-
-			result->num_cols = sqlite3_column_count(stmt);
-			struct db_value* value =
-				(struct db_value*)malloc(
-					sizeof(struct db_value) * result->num_cols);
-
-			if (!value) {
-				ERR_LOG("Failed to allocate db value");
-				return ERR_NOMEM;
-			}
-
-			for (uint32_t col = 0; col < result->num_cols; ++col) {
-				int32_t type = sqlite3_column_type(stmt, col);
-				switch(type) {
-					case SQLITE_INTEGER:
-						value[col].type = INT;
-						value[col].value.int_val =
-							sqlite3_column_int(stmt, col);
-						break;
-					case SQLITE_FLOAT:
-						value[col].type = DOUBLE;
-						value[col].value.double_val =
-							sqlite3_column_double(stmt, col);
-						break;
-					case SQLITE_TEXT:
-						value[col].type = TEXT;
-						const char* col_value =
-							(const char*)sqlite3_column_text(stmt, col);
-						int32_t col_len = sqlite3_column_bytes(stmt, col) + 1;
-						value[col].value.string_val =
-							(char*)malloc(sizeof(char) * col_len);
-
-						if (!value[col].value.string_val) {
-							ERR_LOG(
-								"Failed to allocate memory for text value");
-							return ERR_NOMEM;
-						}
-
-						strcpy(value[col].value.string_val, col_value);
-						break;
-					default:
-						WARN_LOG("Unsupported result type: %d", type);
-						break;
+		switch (rc) {
+			case SQLITE_ROW:
+				if (!result) {
+					WARN_LOG("Result is null but results returned");
+					continue;
 				}
-			}
+				handle_result_row(stmt, result);
+				++rows_processed;
+				break;
+			case SQLITE_DONE:
+				break;
+			case SQLITE_BUSY:
+				if (!have_retried) { 
+					WARN_LOG("Database busy trying again");
+					have_retried = true;
+					sleep(1);
+				}
+				break;
+			default:
+				ERR_LOG("Failed to execute query: [%d]", rc);
+				return sqlite_error_to_error(rc);
 		}
-		else if (SQLITE_BUSY == rc) {
-			if (!have_retried) { 
-				WARN_LOG("Database busy trying again");
-				have_retried = true;
-				sleep(1);
-			}
-		}
-		else {
-			ERR_LOG("Failed to execute query: [%d]", rc);
-			return sqlite_error_to_error(rc);
-		}
-	} while (SQLITE_OK != rc && ++rows_processed < result->num_rows);
+	} while (
+		(SQLITE_ROW == rc || SQLITE_BUSY == rc) &&
+		rows_processed < result->num_rows);
+
+	if (result &&
+		rows_processed < result->num_rows) {
+		WARN_LOG("Only processed [%u] rows when expecting [%u]",
+			rows_processed, result->num_rows);
+		result->num_rows = rows_processed;
+	}
 
 	return ERR_OK;
 }
