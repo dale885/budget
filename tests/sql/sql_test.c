@@ -49,9 +49,9 @@ void tearDown() {
 void test_open_db_with_invalid_arguments() {
 	TEST_ASSERT_EQUAL_INT(ERR_OK, close_db(db));
 
-	TEST_ASSERT_EQUAL_INT(ERR_KO, open_db(NULL, &db));
-	TEST_ASSERT_EQUAL_INT(ERR_KO, open_db(DB_DIR, NULL));
-	TEST_ASSERT_EQUAL_INT(ERR_KO, open_db(NULL, NULL));
+	TEST_ASSERT_EQUAL_INT(ERR_INVALID, open_db(NULL, &db));
+	TEST_ASSERT_EQUAL_INT(ERR_INVALID, open_db(DB_DIR, NULL));
+	TEST_ASSERT_EQUAL_INT(ERR_INVALID, open_db(NULL, NULL));
 
 	TEST_ASSERT_EQUAL_INT(ERR_KO, open_db("/etc/", &db));
 	TEST_ASSERT_EQUAL_INT(ERR_KO, open_db("//", &db));
@@ -63,15 +63,15 @@ void test_execute_with_invalid_query() {
 
 	query.db = db;
 
-	TEST_ASSERT_EQUAL_INT(ERR_KO, execute_query(NULL, NULL));
-	TEST_ASSERT_EQUAL_INT(ERR_KO, execute_query(&query, NULL));
+	TEST_ASSERT_EQUAL_INT(ERR_INVALID, execute_query(NULL, NULL));
+	TEST_ASSERT_EQUAL_INT(ERR_INVALID, execute_query(&query, NULL));
 
 	query.query = NULL;
-	TEST_ASSERT_EQUAL_INT(ERR_KO, execute_query(&query, NULL));
+	TEST_ASSERT_EQUAL_INT(ERR_INVALID, execute_query(&query, NULL));
 
 	query.num_params = 5;
 	query.params = NULL;
-	TEST_ASSERT_EQUAL_INT(ERR_KO, execute_query(&query, NULL));
+	TEST_ASSERT_EQUAL_INT(ERR_INVALID, execute_query(&query, NULL));
 }
 
 
