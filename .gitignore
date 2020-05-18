@@ -15,3 +15,4 @@ tests/example/example_test
 *.deps/
 ar-lib
 *.a
+sql_test
