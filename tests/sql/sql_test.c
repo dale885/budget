@@ -74,12 +74,27 @@ void test_execute_with_invalid_query() {
 	TEST_ASSERT_EQUAL_INT(ERR_INVALID, execute_query(&query, NULL));
 }
 
+void test_execute_with_invalid_results() {
+}
+
+void test_table_queries() {
+}
+
+void test_queries_with_invalid_params() {
+}
+
+void test_queries() {
+}
 
 int main() {
 	UNITY_BEGIN();
 
 	RUN_TEST(test_open_db_with_invalid_arguments);
 	RUN_TEST(test_execute_with_invalid_query);
+	RUN_TEST(test_execute_with_invalid_results);
+	RUN_TEST(test_queries_with_invalid_params);
+	RUN_TEST(test_table_queries);
+	RUN_TEST(test_queries);
 
 	return UNITY_END();
 }
