@@ -60,11 +60,15 @@ static void get_full_path(char** full_path, const char* dir_path)
 
 static int32_t bind_params(sqlite3_stmt* stmt, uint32_t num_params, struct query_param* params)
 {
-	uint32_t i;
+
+	if (!params) {
+		ERR_LOG("params are NULL");
+		return ERR_KO;
+	}
 
 	DEBUG_LOG("Binding [%u] parameters", num_params);
 
-	for (i = 0; i < num_params; ++i)
+	for (uint32_t i = 0; i < num_params; ++i)
 	{
 		struct query_param* param = &params[i];
 
@@ -398,7 +402,7 @@ int32_t execute_query(struct db_query* query, struct db_query_result* result)
 
 	sqlite3_stmt *stmt;
 	rc = generate_sql_statment(query, &stmt);
-	if (ERR_OK != result)
+	if (ERR_OK != rc)
 	{
 		ERR_LOG("Failed to generate sql statement");
 		return rc;
