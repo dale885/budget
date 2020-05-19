@@ -140,7 +140,10 @@ static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt
 	return ERR_OK;
 }
 
-static int32_t handle_result_row(sqlite3_stmt* stmt, struct db_query_result* result) {
+static int32_t handle_result_row(
+	sqlite3_stmt* stmt,
+	struct db_query_result* result,
+	uint32_t row) {
 	if (!result->values) {
 		ERR_LOG("Result rows have not been allocated");
 		return ERR_INVALID;
@@ -189,6 +192,7 @@ static int32_t handle_result_row(sqlite3_stmt* stmt, struct db_query_result* res
 				if (!value[col].value.string_val) {
 					ERR_LOG(
 						"Failed to allocate memory for text value");
+					free(value);
 					return ERR_NOMEM;
 				}
 
@@ -199,6 +203,8 @@ static int32_t handle_result_row(sqlite3_stmt* stmt, struct db_query_result* res
 				break;
 		}
 	}
+
+	result->values[row] = value;
 
 	return ERR_OK;
 }
@@ -220,7 +226,7 @@ static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 					WARN_LOG("Result is null but results returned");
 					continue;
 				}
-				handle_result_row(stmt, result);
+				handle_result_row(stmt, result, rows_processed);
 				++rows_processed;
 				break;
 			case SQLITE_DONE:
@@ -251,30 +257,55 @@ static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 }
 static int32_t get_num_results(struct db_query* query, struct db_query_result* result)
 {
+	sqlite3_stmt* stmt = NULL;
+	char* count_query = NULL;
+	char* original_query = NULL;
+	jmp_buf buf;
+
+	int32_t rc = setjmp(buf);
+	if (0 != rc) {
+		ERR_LOG("Failed to get the number of results: %d", rc);
+		if (count_query) {
+			free(count_query);
+		}
+
+		if (original_query) {
+			free(original_query);
+		}
+
+		if (stmt)
+		{
+			sqlite3_finalize(stmt);
+		}
+		return rc;
+	}
 	int32_t query_len = snprintf(
 		NULL,
 		0,
 		DB_COUNT_RESULT_QUERY,
 		query->query) + 1;
-	char* count_query = (char*)malloc(sizeof(char) * query_len);
+	count_query = (char*)malloc(sizeof(char) * query_len);
 	if (!count_query) {
 		ERR_LOG("Failed to create count query");
-		return ERR_NOMEM;
+		longjmp(buf, ERR_NOMEM);
 	}
 
-	sqlite3_stmt* stmt = NULL;
-	jmp_buf buf;
-	int32_t rc = setjmp(buf);
-	if (0 != rc) {
-		ERR_LOG("Failed to get the number of results: %d", rc);
+	original_query = (char*)malloc(sizeof(char) * (strlen(query->query) + 1));
+	if (!original_query) {
+		ERR_LOG("Failed to allocate memory to copy query");
 		free(count_query);
-		if (stmt)
-		{
-			sqlite3_finalize(stmt);
-		}
-
-		return rc;
+		longjmp(buf, ERR_NOMEM);
 	}
+	strcpy(original_query, query->query);
+	char* split = strtok(original_query, ";");
+	if (!split) {
+		WARN_LOG("Query [%s] missing ';'",
+			query->query);
+		split = original_query;
+	}
+
+	snprintf(count_query, query_len, DB_COUNT_RESULT_QUERY, split);
+	DEBUG_LOG("Got result count query [%s]", count_query);
 
 	struct db_query sql_query = { 
 		query->db,
@@ -301,6 +332,7 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 
 	sqlite3_finalize(stmt);
 	free (count_query);
+	free(original_query);
 
 	return ERR_OK;
 

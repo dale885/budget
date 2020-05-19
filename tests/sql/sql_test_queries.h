@@ -19,6 +19,21 @@
 
 #define INSERT_ROW \
 	"INSERT INTO test (id, int_val, double_val, text_val) "\
-	"VALUES($id_param, $int_param, $double_param, $text_param);"
+	"VALUES ($id_param, $int_param, $double_param, $text_param);"
+
+#define SELECT_ROW_WITH_ID \
+	"SELECT * FROM test WHERE id=$id_param;"
+
+#define SELECT_ALL_TEXT \
+	"SELECT text_val FROM test;"
+
+#define SELECT_ROW_WITH_TEXT \
+	"SELECT * FROM test WHERE text_val='$text_param';"
+
+#define SELECT_INT_FROM_ROW_WITH_ID \
+	"SELECT int_val FROM test WHERE id=$id_param;"
+
+#define SELECT_DOUBLE_FROM_ROW_WITH_INT_VAL \
+	"SELECT double_val FROM test WHERE int_val=$int_param;"
 
 #endif
