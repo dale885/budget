@@ -4,20 +4,17 @@ make clean
 
 clean() {
 	for entry in $1/*; do
-		if [ -d $entry ]; then
+
+		if [ -d $entry/build ]; then
 			clean $entry
 		fi
 
 		if [[ -f $entry/Makefile ]]; then
-			rm $entry/Makefile
+			rm -v $entry/Makefile
 		fi
 
 		if [[ -f $entry/Makefile.in ]]; then
-			rm $entry/Makefile.in
-		fi
-
-		if [[ -d $entry/build ]]; then
-			rm -r $entry/build
+			rm -v $entry/Makefile.in
 		fi
 	done
 }
@@ -34,7 +31,11 @@ rm Makefile.in
 rm missing
 rm install-sh
 
-for dir in src tests Unity; do
+for dir in src tests; do
 	clean $dir
 done
+
+if [[ -d Unity/build ]]; then
+	rm -rv Unity/build
+fi
 

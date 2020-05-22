@@ -220,6 +220,7 @@ void test_execute_with_results() {
 	query.params->name = "$id_param";
 	query.params->param.type = INT;
 	query.params->param.value.int_val = 2;
+	uint32_t result_index = 1;
 
 	struct db_query_result result = {0};
 
@@ -228,8 +229,14 @@ void test_execute_with_results() {
 
 	TEST_ASSERT_EQUAL_UINT(4, result.num_cols);
 	TEST_ASSERT_EQUAL_UINT(1, result.num_rows);
+	TEST_ASSERT_TRUE(result.values[0][0].type == INT);
+	TEST_ASSERT_EQUAL_INT(query.params->param.value.int_val, result.values[0][0].value.int_val);
+	TEST_ASSERT_TRUE(result.values[0][1].type == INT);
+	TEST_ASSERT_EQUAL_INT(int_vals[result_index], result.values[0][1].value.int_val);
+	TEST_ASSERT_TRUE(result.values[0][2].type == DOUBLE);
+	TEST_ASSERT_EQUAL_DOUBLE(double_vals[result_index], result.values[0][2].value.double_val);
 	TEST_ASSERT_TRUE(result.values[0][3].type == TEXT);
-	TEST_ASSERT_FALSE(strcmp("Row 2", result.values[0][3].value.string_val));
+	TEST_ASSERT_EQUAL_STRING(text_vals[result_index], result.values[0][3].value.string_val);
 
 	free_results(&result);
 	free(query.params);
@@ -264,9 +271,6 @@ void test_queries_with_invalid_params() {
 	free(query.params);
 }
 
-void test_query_results() {
-}
-
 int main() {
 	UNITY_BEGIN();
 
@@ -276,7 +280,6 @@ int main() {
 	RUN_TEST(test_execute_with_results);
 	RUN_TEST(test_queries_with_invalid_params);
 	RUN_TEST(test_table_queries);
-	RUN_TEST(test_query_results);
 
 	return suiteTearDown(UNITY_END());
 }
