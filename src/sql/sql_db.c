@@ -7,12 +7,13 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <setjmp.h>
+#include <stdio.h>
 
 #include <sql/sql_db.h>
 #include <log.h>
 #include <error.h>
 
-#define DB_FILE_PATH "db/budget.db"
+#define DB_FILE_PATH "budget.db"
 #define DB_COUNT_RESULT_QUERY "SELECT COUNT(*) FROM (%s);"
 #define DIR_PERM S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
 
@@ -59,11 +60,15 @@ static void get_full_path(char** full_path, const char* dir_path)
 
 static int32_t bind_params(sqlite3_stmt* stmt, uint32_t num_params, struct query_param* params)
 {
-	uint32_t i;
+
+	if (!params) {
+		ERR_LOG("params are NULL");
+		return ERR_KO;
+	}
 
 	DEBUG_LOG("Binding [%u] parameters", num_params);
 
-	for (i = 0; i < num_params; ++i)
+	for (uint32_t i = 0; i < num_params; ++i)
 	{
 		struct query_param* param = &params[i];
 
@@ -135,6 +140,75 @@ static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt
 	return ERR_OK;
 }
 
+static int32_t handle_result_row(
+	sqlite3_stmt* stmt,
+	struct db_query_result* result,
+	uint32_t row) {
+	if (!result->values) {
+		ERR_LOG("Result rows have not been allocated");
+		return ERR_INVALID;
+	}
+
+	uint32_t num_cols = sqlite3_column_count(stmt);
+	if (0 == result->num_cols) {
+		result->num_cols = num_cols;
+	}
+	else if (num_cols != result->num_cols) {
+		ERR_LOG("Columns returned [%d] does not match expected [%d]",
+			num_cols, result->num_cols);
+		return ERR_INVALID;
+	}
+
+	struct db_value* value =
+		(struct db_value*)malloc(
+			sizeof(struct db_value) * result->num_cols);
+
+	if (!value) {
+		ERR_LOG("Failed to allocate db value");
+		return ERR_NOMEM;
+	}
+
+	for (uint32_t col = 0; col < result->num_cols; ++col) {
+		int32_t type = sqlite3_column_type(stmt, col);
+		switch(type) {
+			case SQLITE_INTEGER:
+				value[col].type = INT;
+				value[col].value.int_val =
+					sqlite3_column_int(stmt, col);
+				break;
+			case SQLITE_FLOAT:
+				value[col].type = DOUBLE;
+				value[col].value.double_val =
+					sqlite3_column_double(stmt, col);
+				break;
+			case SQLITE_TEXT:
+				value[col].type = TEXT;
+				const char* col_value =
+					(const char*)sqlite3_column_text(stmt, col);
+				int32_t col_len = sqlite3_column_bytes(stmt, col) + 1;
+				value[col].value.string_val =
+					(char*)malloc(sizeof(char) * col_len);
+
+				if (!value[col].value.string_val) {
+					ERR_LOG(
+						"Failed to allocate memory for text value");
+					free(value);
+					return ERR_NOMEM;
+				}
+
+				strcpy(value[col].value.string_val, col_value);
+				break;
+			default:
+				WARN_LOG("Unsupported result type: %d", type);
+				break;
+		}
+	}
+
+	result->values[row] = value;
+
+	return ERR_OK;
+}
+
 static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 {
 	if (!result) {
@@ -146,98 +220,92 @@ static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 	bool have_retried = false;
 	do {
 		rc = sqlite3_step(stmt);
-		if (SQLITE_ROW == rc) {
-			if (!result->values) {
-				ERR_LOG("Result rows have not been allocated");
-				return ERR_INVALID;
-			}
-
-			result->num_cols = sqlite3_column_count(stmt);
-			struct db_value* value =
-				(struct db_value*)malloc(
-					sizeof(struct db_value) * result->num_cols);
-
-			if (!value) {
-				ERR_LOG("Failed to allocate db value");
-				return ERR_NOMEM;
-			}
-
-			for (uint32_t col = 0; col < result->num_cols; ++col) {
-				int32_t type = sqlite3_column_type(stmt, col);
-				switch(type) {
-					case SQLITE_INTEGER:
-						value[col].type = INT;
-						value[col].value.int_val =
-							sqlite3_column_int(stmt, col);
-						break;
-					case SQLITE_FLOAT:
-						value[col].type = DOUBLE;
-						value[col].value.double_val =
-							sqlite3_column_double(stmt, col);
-						break;
-					case SQLITE_TEXT:
-						value[col].type = TEXT;
-						const char* col_value =
-							(const char*)sqlite3_column_text(stmt, col);
-						int32_t col_len = sqlite3_column_bytes(stmt, col) + 1;
-						value[col].value.string_val =
-							(char*)malloc(sizeof(char) * col_len);
-
-						if (!value[col].value.string_val) {
-							ERR_LOG(
-								"Failed to allocate memory for text value");
-							return ERR_NOMEM;
-						}
-
-						strcpy(value[col].value.string_val, col_value);
-						break;
-					default:
-						WARN_LOG("Unsupported result type: %d", type);
-						break;
+		switch (rc) {
+			case SQLITE_ROW:
+				if (!result) {
+					WARN_LOG("Result is null but results returned");
+					continue;
 				}
-			}
+				handle_result_row(stmt, result, rows_processed);
+				++rows_processed;
+				break;
+			case SQLITE_DONE:
+				break;
+			case SQLITE_BUSY:
+				if (!have_retried) { 
+					WARN_LOG("Database busy trying again");
+					have_retried = true;
+					sleep(1);
+				}
+				break;
+			default:
+				ERR_LOG("Failed to execute query: [%d]", rc);
+				return sqlite_error_to_error(rc);
 		}
-		else if (SQLITE_BUSY == rc) {
-			if (!have_retried) { 
-				WARN_LOG("Database busy trying again");
-				have_retried = true;
-				sleep(1);
-			}
-		}
-		else {
-			ERR_LOG("Failed to execute query: [%d]", rc);
-			return sqlite_error_to_error(rc);
-		}
-	} while (SQLITE_OK != rc && ++rows_processed < result->num_rows);
+	} while (
+		(SQLITE_ROW == rc || SQLITE_BUSY == rc) &&
+		rows_processed < result->num_rows);
+
+	if (result &&
+		rows_processed < result->num_rows) {
+		WARN_LOG("Only processed [%u] rows when expecting [%u]",
+			rows_processed, result->num_rows);
+		result->num_rows = rows_processed;
+	}
 
 	return ERR_OK;
 }
 static int32_t get_num_results(struct db_query* query, struct db_query_result* result)
 {
+	sqlite3_stmt* stmt = NULL;
+	char* count_query = NULL;
+	char* original_query = NULL;
+	jmp_buf buf;
+
+	int32_t rc = setjmp(buf);
+	if (0 != rc) {
+		ERR_LOG("Failed to get the number of results: %d", rc);
+		if (count_query) {
+			free(count_query);
+		}
+
+		if (original_query) {
+			free(original_query);
+		}
+
+		if (stmt)
+		{
+			sqlite3_finalize(stmt);
+		}
+		return rc;
+	}
 	int32_t query_len = snprintf(
 		NULL,
 		0,
 		DB_COUNT_RESULT_QUERY,
 		query->query) + 1;
-	char* count_query = (char*)malloc(sizeof(char) * query_len);
+	count_query = (char*)malloc(sizeof(char) * query_len);
 	if (!count_query) {
 		ERR_LOG("Failed to create count query");
-		return ERR_NOMEM;
+		longjmp(buf, ERR_NOMEM);
 	}
 
-	sqlite3_stmt* stmt = NULL;
-	jmp_buf buf;
-	int32_t rc = setjmp(buf);
-	if (0 != rc) {
-		ERR_LOG("Failed to get the number of results: %d", rc);
+	original_query = (char*)malloc(sizeof(char) * (strlen(query->query) + 1));
+	if (!original_query) {
+		ERR_LOG("Failed to allocate memory to copy query");
 		free(count_query);
-		if (stmt)
-		{
-			sqlite3_finalize(stmt);
-		}
-
-		return rc;
+		longjmp(buf, ERR_NOMEM);
 	}
+	strcpy(original_query, query->query);
+	char* split = strtok(original_query, ";");
+	if (!split) {
+		WARN_LOG("Query [%s] missing ';'",
+			query->query);
+		split = original_query;
+	}
+
+	snprintf(count_query, query_len, DB_COUNT_RESULT_QUERY, split);
+	DEBUG_LOG("Got result count query [%s]", count_query);
 
 	struct db_query sql_query = { 
 		query->db,
@@ -264,6 +332,7 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 
 	sqlite3_finalize(stmt);
 	free (count_query);
+	free(original_query);
 
 	return ERR_OK;
 
@@ -271,6 +340,16 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 
 int32_t open_db(const char* db_path, sqlite3** db)
 {
+	if (!db_path) {
+		ERR_LOG("DB path is NULL");
+		return ERR_INVALID;
+	}
+
+	if (!db) {
+		ERR_LOG("DB is NULL");
+		return ERR_INVALID;
+	}
+
 	char* full_path;
 	get_full_path(&full_path, db_path);
 
@@ -279,23 +358,27 @@ int32_t open_db(const char* db_path, sqlite3** db)
 	jmp_buf buf;
 	int32_t rc = setjmp(buf);
 
-	if (0 == rc) {
-		rc = create_db_directory(db_path);
-		if (0 != rc) {
-			ERR_LOG("Failed to create DB directory [%s]:%d", db_path, rc);
-			longjmp(buf, ERR_KO);
-		}
+	if (0 != rc) {
+		ERR_LOG("Failed to open connection to DB [%s]", full_path);
+		free(full_path);
+		return rc;
+	}
 
-		rc = sqlite3_open_v2(
-			full_path,
-			db,
-			SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
-			NULL);
+	rc = create_db_directory(db_path);
+	if (0 != rc) {
+		ERR_LOG("Failed to create DB directory [%s]:%d", db_path, rc);
+		longjmp(buf, ERR_KO);
+	}
 
-		if (SQLITE_OK != rc) {
-			ERR_LOG("Failed to open DB connection to [%s]:%d", full_path, rc);
-			longjmp(buf, sqlite_error_to_error(rc));
-		}
+	rc = sqlite3_open_v2(
+		full_path,
+		db,
+		SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+		NULL);
+
+	if (SQLITE_OK != rc) {
+		ERR_LOG("Failed to open DB connection to [%s]:%d", full_path, rc);
+		longjmp(buf, sqlite_error_to_error(rc));
 	}
 
 	free(full_path);
@@ -322,6 +405,12 @@ int32_t execute_query(struct db_query* query, struct db_query_result* result)
 	int32_t rc;
 	if (!query) {
 		ERR_LOG("query is null");
+		return ERR_INVALID;
+	}
+
+	if (!query->query) {
+		ERR_LOG("SQL query is NULL");
+		return ERR_INVALID;
 	}
 
 	if (result) {
@@ -345,7 +434,7 @@ int32_t execute_query(struct db_query* query, struct db_query_result* result)
 
 	sqlite3_stmt *stmt;
 	rc = generate_sql_statment(query, &stmt);
-	if (ERR_OK != result)
+	if (ERR_OK != rc)
 	{
 		ERR_LOG("Failed to generate sql statement");
 		return rc;

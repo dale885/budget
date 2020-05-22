@@ -1,2 +1,3 @@
-SUBDIRS=example
+SUBDIRS=	\
+	sql
 
