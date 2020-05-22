@@ -37,7 +37,7 @@ static int32_t create_db_directory(const char* path)
 
 		rc = mkdir(path, DIR_PERM);
 		if (0 != rc) {
-			ERR_LOG("Failed to create directory [%s]: %m", path);
+			ERR_LOG("Failed to create directory [%s]: [%m]", path);
 			return ERR_KO;
 		}
 	}
@@ -108,8 +108,8 @@ static int32_t bind_params(sqlite3_stmt* stmt, uint32_t num_params, struct query
 
 		if (SQLITE_OK != rc)
 		{
-			ERR_LOG("Failed to bind value to parameter [%s]: %d",
-				param->name, rc);
+			ERR_LOG("Failed to bind value to parameter [%s]: [%d:%s]",
+				param->name, rc, sqlite3_errstr(rc));
 			return sqlite_error_to_error(rc);
 		}
 	}
@@ -121,7 +121,8 @@ static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt
 {
 	int32_t rc = sqlite3_prepare_v2(query->db, query->query, -1, stmt, NULL);
 	if (SQLITE_OK != rc) {
-		ERR_LOG("Failed to prepare query [%s]: %d", query->query, rc);
+		ERR_LOG("Failed to prepare query [%s]: [%d:%s]",
+			query->query, rc, sqlite3_errstr(rc));
 		return sqlite_error_to_error(rc);
 	}
 
@@ -199,7 +200,7 @@ static int32_t handle_result_row(
 				strcpy(value[col].value.string_val, col_value);
 				break;
 			default:
-				WARN_LOG("Unsupported result type: %d", type);
+				WARN_LOG("Unsupported result type: [%d]", type);
 				break;
 		}
 	}
@@ -239,7 +240,8 @@ static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 				}
 				break;
 			default:
-				ERR_LOG("Failed to execute query: [%d]", rc);
+				ERR_LOG("Failed to execute query: [%d:%s]",
+					rc, sqlite3_errstr(rc));
 				return sqlite_error_to_error(rc);
 		}
 	} while (
@@ -264,7 +266,7 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 
 	int32_t rc = setjmp(buf);
 	if (0 != rc) {
-		ERR_LOG("Failed to get the number of results: %d", rc);
+		ERR_LOG("Failed to get the number of results: [%d]", rc);
 		if (count_query) {
 			free(count_query);
 		}
@@ -314,13 +316,15 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 		query->params};
 	rc = generate_sql_statment(&sql_query, &stmt);
 	if (SQLITE_OK != rc) {
-		ERR_LOG("Failed to generate sql statement: %d", rc);
+		ERR_LOG("Failed to generate sql statement: [%d:%s]",
+			rc, sqlite3_errstr(rc));
 		longjmp(buf, sqlite_error_to_error(rc));
 	}
 
 	rc = sqlite3_step(stmt);
 	if (SQLITE_ROW != rc) {
-		ERR_LOG("Failed to get count result: %d", rc);
+		ERR_LOG("Failed to get count result: [%d:%s]",
+			rc, sqlite3_errstr(rc));
 		if (SQLITE_OK == rc) {
 			WARN_LOG("Query ran successfully but no data returned");
 			rc = ERR_KO;
@@ -366,7 +370,7 @@ int32_t open_db(const char* db_path, sqlite3** db)
 
 	rc = create_db_directory(db_path);
 	if (0 != rc) {
-		ERR_LOG("Failed to create DB directory [%s]:%d", db_path, rc);
+		ERR_LOG("Failed to create DB directory [%s]: [%d:%m]", db_path, rc);
 		longjmp(buf, ERR_KO);
 	}
 
@@ -377,7 +381,8 @@ int32_t open_db(const char* db_path, sqlite3** db)
 		NULL);
 
 	if (SQLITE_OK != rc) {
-		ERR_LOG("Failed to open DB connection to [%s]:%d", full_path, rc);
+		ERR_LOG("Failed to open DB connection to [%s]: [%d:%s]",
+			full_path, rc, sqlite3_errstr(rc));
 		longjmp(buf, sqlite_error_to_error(rc));
 	}
 
@@ -443,7 +448,8 @@ int32_t execute_query(struct db_query* query, struct db_query_result* result)
 	rc = handle_result(stmt, result);
 	if (ERR_OK != rc)
 	{
-		ERR_LOG("Failed to execute query [%s]: %d", query->query, rc);
+		ERR_LOG("Failed to execute query [%s]: [%d:%s]",
+			query->query, rc, sqlite3_errstr(rc));
 		sqlite3_finalize(stmt);
 		return rc;
 	}
