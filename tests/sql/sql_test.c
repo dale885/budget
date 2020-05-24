@@ -20,7 +20,7 @@
 sqlite3* db = NULL;
 char* DB_DIR;
 
-static void free_params(struct query_param* params, uint32_t num_params) {
+static void free_params(query_param* params, uint32_t num_params) {
 	for (uint32_t i = 0; i < num_params; ++i) {
 		if (TEXT == params[i].param.type) {
 			free(params[i].param.value.string_val);
@@ -28,7 +28,7 @@ static void free_params(struct query_param* params, uint32_t num_params) {
 	}
 }
 
-static void free_results(struct db_query_result* results) {
+static void free_results(db_query_result* results) {
 	for (uint32_t i = 0; i < results->num_rows; ++i) {
 		for (uint32_t j = 0; j < results->num_cols; ++j) {
 			if (TEXT == results->values[i][j].type) {
@@ -71,10 +71,10 @@ static void generate_insert_row_params(
 	int32_t int_val,
 	double double_val,
 	const char* text_val,
-	struct query_param** params) {
+	query_param** params) {
 
-	*params = (struct query_param*)malloc(
-		sizeof(struct query_param) * 4);
+	*params = (query_param*)malloc(
+		sizeof(query_param) * 4);
 
 	(*params)[0].name = ID_PARAM;
 	(*params)[0].param.type = INT;
@@ -101,8 +101,8 @@ static void insert_rows(
 	const char** text_val,
 	uint32_t num_rows) {
 
-	struct query_param** params = (struct query_param**)malloc(
-		sizeof(struct query_param*));
+	query_param** params = (query_param**)malloc(
+		sizeof(query_param*));
 	TEST_ASSERT_NOT_NULL(params);
 
 	struct db_query query = {db, INSERT_ROW, 4, NULL};
@@ -184,7 +184,7 @@ void test_open_db_with_invalid_arguments() {
 }
 
 void test_execute_with_invalid_query() {
-	struct db_query query = { NULL, NULL, 0, NULL};
+	db_query query = {0};
 
 	query.db = db;
 
@@ -214,15 +214,15 @@ void test_execute_with_results() {
 
 	insert_rows(int_vals, double_vals, text_vals, 5);
 
-	struct db_query query = {db, SELECT_ROW_WITH_ID, 1, NULL};
-	query.params = (struct query_param*)malloc(
-		sizeof(struct query_param) * query.num_params);
+	db_query query = {db, SELECT_ROW_WITH_ID, 1, NULL};
+	query.params = (query_param*)malloc(
+		sizeof(query_param) * query.num_params);
 	query.params->name = "$id_param";
 	query.params->param.type = INT;
 	query.params->param.value.int_val = 2;
 	uint32_t result_index = 1;
 
-	struct db_query_result result = {0};
+	db_query_result result = {0};
 
 	TEST_ASSERT_EQUAL_INT(ERR_OK, execute_query(&query, &result));
 
@@ -243,7 +243,7 @@ void test_execute_with_results() {
 }
 
 void test_table_queries() {
-	struct db_query query = {db, CREATE_TEST_TABLE, 0, NULL};
+	db_query query = {db, CREATE_TEST_TABLE, 0, NULL};
 
 	create_test_table();
 
@@ -253,7 +253,7 @@ void test_table_queries() {
 void test_queries_with_invalid_params() {
 	create_test_table();
 
-	struct db_query query = {db, INSERT_ROW, 0, NULL};
+	db_query query = {db, INSERT_ROW, 0, NULL};
 
 	TEST_ASSERT_EQUAL_INT(ERR_KO, execute_query(&query, NULL));
 

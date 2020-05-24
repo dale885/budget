@@ -20,7 +20,7 @@ enum db_type {
 	INT,
 	DOUBLE,
 	TEXT
-};
+} typedef db_type;
 
 /** @struct db_value
   *
@@ -28,13 +28,13 @@ enum db_type {
   *		struct to for representing a value in the database
   */
 struct db_value {
-	enum db_type type;
+	db_type type;
 	union {
 		int32_t int_val;
 		double double_val;
 		char* string_val;
 	} value;
-};
+} typedef db_value;
 
 /** @struct query_param
   *
@@ -44,8 +44,8 @@ struct db_value {
   */
 struct query_param {
 	const char* name;
-	struct db_value param;
-};
+	db_value param;
+} typedef query_param;
 
 /** @struct db_query_result
   *
@@ -56,18 +56,18 @@ struct query_param {
   * 	Caller is responsible for cleaning up values
   */
 struct db_query_result {
-	uint32_t num_rows;
-	uint32_t num_cols;
-	struct db_value** values;
+	size_t num_rows;
+	size_t num_cols;
+	db_value** values;
 
-};
+} typedef db_query_result;
 
 struct db_query {
 	sqlite3* db;
 	const char* query;
-	uint32_t num_params;
-	struct query_param* params;
-};
+	size_t num_params;
+	query_param* params;
+} typedef db_query;
 
 /** @brief open_db
  *
@@ -109,7 +109,7 @@ int32_t close_db(sqlite3* db);
   *
   * @retval 0 if query was executed successfully
   */
-int32_t execute_query(struct db_query* query, struct db_query_result* result);
+int32_t execute_query(db_query* query, db_query_result* result);
 
 #endif
 

@@ -58,7 +58,7 @@ static void get_full_path(char** full_path, const char* dir_path)
 	strcat(*full_path, DB_FILE_PATH);
 }
 
-static int32_t bind_params(sqlite3_stmt* stmt, uint32_t num_params, struct query_param* params)
+static int32_t bind_params(sqlite3_stmt* stmt, size_t num_params, query_param* params)
 {
 
 	if (!params) {
@@ -70,7 +70,7 @@ static int32_t bind_params(sqlite3_stmt* stmt, uint32_t num_params, struct query
 
 	for (uint32_t i = 0; i < num_params; ++i)
 	{
-		struct query_param* param = &params[i];
+		query_param* param = &params[i];
 
 		DEBUG_LOG("Binding param [%s]", param->name);
 
@@ -117,7 +117,7 @@ static int32_t bind_params(sqlite3_stmt* stmt, uint32_t num_params, struct query
 	return ERR_OK;
 }
 
-static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt)
+static int32_t generate_sql_statment(db_query* query, sqlite3_stmt** stmt)
 {
 	int32_t rc = sqlite3_prepare_v2(query->db, query->query, -1, stmt, NULL);
 	if (SQLITE_OK != rc) {
@@ -143,14 +143,14 @@ static int32_t generate_sql_statment(struct db_query* query, sqlite3_stmt** stmt
 
 static int32_t handle_result_row(
 	sqlite3_stmt* stmt,
-	struct db_query_result* result,
-	uint32_t row) {
+	db_query_result* result,
+	size_t row) {
 	if (!result->values) {
 		ERR_LOG("Result rows have not been allocated");
 		return ERR_INVALID;
 	}
 
-	uint32_t num_cols = sqlite3_column_count(stmt);
+	size_t num_cols = sqlite3_column_count(stmt);
 	if (0 == result->num_cols) {
 		result->num_cols = num_cols;
 	}
@@ -160,16 +160,16 @@ static int32_t handle_result_row(
 		return ERR_INVALID;
 	}
 
-	struct db_value* value =
-		(struct db_value*)malloc(
-			sizeof(struct db_value) * result->num_cols);
+	db_value* value =
+		(db_value*)malloc(
+			sizeof(db_value) * result->num_cols);
 
 	if (!value) {
 		ERR_LOG("Failed to allocate db value");
 		return ERR_NOMEM;
 	}
 
-	for (uint32_t col = 0; col < result->num_cols; ++col) {
+	for (size_t col = 0; col < result->num_cols; ++col) {
 		int32_t type = sqlite3_column_type(stmt, col);
 		switch(type) {
 			case SQLITE_INTEGER:
@@ -186,7 +186,7 @@ static int32_t handle_result_row(
 				value[col].type = TEXT;
 				const char* col_value =
 					(const char*)sqlite3_column_text(stmt, col);
-				int32_t col_len = sqlite3_column_bytes(stmt, col) + 1;
+				size_t col_len = sqlite3_column_bytes(stmt, col) + 1;
 				value[col].value.string_val =
 					(char*)malloc(sizeof(char) * col_len);
 
@@ -210,14 +210,14 @@ static int32_t handle_result_row(
 	return ERR_OK;
 }
 
-static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
+static int32_t handle_result(sqlite3_stmt* stmt, db_query_result* result)
 {
 	if (!result) {
 		INFO_LOG("Result is null. Ignoring results returned from query");
 	}
 
 	int32_t rc;
-	uint32_t rows_processed = 0;
+	size_t rows_processed = 0;
 	bool have_retried = false;
 	do {
 		rc = sqlite3_step(stmt);
@@ -257,7 +257,7 @@ static int32_t handle_result(sqlite3_stmt* stmt, struct db_query_result* result)
 
 	return ERR_OK;
 }
-static int32_t get_num_results(struct db_query* query, struct db_query_result* result)
+static int32_t get_num_results(db_query* query, db_query_result* result)
 {
 	sqlite3_stmt* stmt = NULL;
 	char* count_query = NULL;
@@ -309,7 +309,7 @@ static int32_t get_num_results(struct db_query* query, struct db_query_result* r
 	snprintf(count_query, query_len, DB_COUNT_RESULT_QUERY, split);
 	DEBUG_LOG("Got result count query [%s]", count_query);
 
-	struct db_query sql_query = { 
+	db_query sql_query = { 
 		query->db,
 		count_query,
 		query->num_params,
@@ -405,7 +405,7 @@ int32_t close_db(sqlite3* db)
 	return ERR_OK;
 }
 
-int32_t execute_query(struct db_query* query, struct db_query_result* result)
+int32_t execute_query(db_query* query, db_query_result* result)
 {
 	int32_t rc;
 	if (!query) {
@@ -428,7 +428,7 @@ int32_t execute_query(struct db_query* query, struct db_query_result* result)
 
 		DEBUG_LOG("Allocating [%u] result rows", result->num_rows)
 
-		result->values = (struct db_value**)malloc(sizeof(struct db_value*) * result->num_rows);
+		result->values = (db_value**)malloc(sizeof(db_value*) * result->num_rows);
 		if (!result->values) {
 			ERR_LOG("Failed to allocate result rows");
 			return ERR_NOMEM;

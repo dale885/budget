@@ -8,6 +8,7 @@ AC_CONFIG_FILES([
 	src/Makefile
 	src/common/Makefile
 	src/sql/Makefile
+	src/budget_db/Makefile
 	tests/Makefile
 	tests/sql/Makefile
 ])

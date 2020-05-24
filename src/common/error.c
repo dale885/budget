@@ -13,7 +13,8 @@ static const char* ERR_TO_STRING[] = {
 	"Err Invalid",
 	"Err Busy",
 	"Err Not Permitted",
-	"Err Not Found"
+	"Err Not Found",
+	"Err Not Ready"
 };
 
 #define MAX_ERROR_NUMBER 6
