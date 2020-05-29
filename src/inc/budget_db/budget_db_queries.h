@@ -41,7 +41,7 @@
 	"payment_type, " \
 	"expense_type, " \
 	"payment_type) "\
-	"VALUES ($amount, $date, $payment_type, $expense_type, $description);"
+	"VALUES ($id, $amount, $date, $payment_type, $expense_type, $description);"
 
 #define SELECT_EXPENSES_IN_RANGE \
 	"SELECT * FROM expenses WHERE date>=$start AND date<=$end;"
