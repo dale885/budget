@@ -49,6 +49,9 @@ sql_test_LDADD=					\
 	-lcommon					\
 	-lsqlite3					\
 	-lunity
+sql_test_DEPENDENCIES=			\
+	libsql.a					\
+	libcommon.a
 
 budget_db_test_SOURCES=			\
 	tests/budget_db/budget_db_test.c
@@ -62,6 +65,10 @@ budget_db_test_LDADD=			\
 	-lcommon					\
 	-lsqlite3					\
 	-lunity
+budget_db_test_DEPENDENCIES=	\
+	libbudget_db.a				\
+	libsql.a					\
+	libcommon.a
 
 endif
 
