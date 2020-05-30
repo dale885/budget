@@ -7,21 +7,21 @@ noinst_LIBRARIES=				\
 	libsql.a					\
 	libbudget_db.a
 
-bin_PROGRAMS=					\
+noinst_PROGRAMS=				\
 	budget_app
 
 libcommon_a_SOURCES=			\
-	error.c						\
-	log.c
+	src/common/error.c			\
+	src/common/log.c
 
 libsql_a_SOURCES=				\
-	sql_db.c
+	src/sql/sql_db.c
 
 libbudget_db_a_SOURCES=	\
-	budget_db.c
+	src/budget_db/budget_db.c
 
 budget_app_SOURCES=				\
-	main.c
+	src/main.c
 budget_app_LDADD=				\
 	-lbudget_db					\
 	-lsql						\
@@ -34,33 +34,33 @@ budget_app_DEPENDENCIES=		\
 
 
 if ENABLE_UNIT_TESTS
-bin_PROGRAMS+=					\
+noinst_PROGRAMS+=				\
 	sql_test					\
 	budget_db_test
 
-sql_test_SOURCES=			\
-	sql_test.c
-sql_test_CFLAGS=			\
+sql_test_SOURCES=				\
+	tests/sql/sql_test.c
+sql_test_CFLAGS=				\
 	$(UNITY_CFLAGS)
-sql_test_LDFLAGS=			\
+sql_test_LDFLAGS=				\
 	$(UNITY_LDFLAGS)
-sql_test_LDADD=				\
-	-lsql					\
-	-lcommon				\
-	-lsqlite3				\
+sql_test_LDADD=					\
+	-lsql						\
+	-lcommon					\
+	-lsqlite3					\
 	-lunity
 
-budget_db_test_SOURCES=		\
-	budget_db_test.c
-budget_db_test_CFLAGS=		\
+budget_db_test_SOURCES=			\
+	tests/budget_db/budget_db_test.c
+budget_db_test_CFLAGS=			\
 	$(UNITY_CFLAGS)
-budget_db_test_LDFLAGS=		\
+budget_db_test_LDFLAGS=			\
 	$(UNITY_LDFLAGS)
-budget_db_test_LDADD=		\
-	-lbudget_db				\
-	-lsql					\
-	-lcommon				\
-	-lsqlite3				\
+budget_db_test_LDADD=			\
+	-lbudget_db					\
+	-lsql						\
+	-lcommon					\
+	-lsqlite3					\
 	-lunity
 
 endif
