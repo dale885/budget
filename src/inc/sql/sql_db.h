@@ -62,12 +62,28 @@ struct db_query_result {
 
 } typedef db_query_result;
 
+/** @struct db_query
+  *
+  * @details
+  *		Contains all information required to make a query
+  *		to the data base
+  */
 struct db_query {
-	sqlite3* db;
+	sqlite3* handle;
 	const char* query;
 	size_t num_params;
 	query_param* params;
 } typedef db_query;
+
+/** @struct db_connection
+  *
+  * @details
+  *		Used when interacting with the database
+  */
+struct db_connection {
+	sqlite3* handle;
+	char* db_path;
+} typedef db_connection;
 
 /** @brief open_db
  *
@@ -82,7 +98,7 @@ struct db_query {
  *
  * @retval 0 if connection created successfully
  */
-int32_t open_db(const char* db_path, sqlite3** db);
+int32_t open_db(db_connection* connection);
 
 /** @brief close_db
   *
@@ -94,7 +110,7 @@ int32_t open_db(const char* db_path, sqlite3** db);
   *
   * @retval 0 if database connection is successfully closed
   */
-int32_t close_db(sqlite3* db);
+int32_t close_db(db_connection* connection);
 
 /** @brief execute_query
   *

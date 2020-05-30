@@ -12,80 +12,63 @@
 #include <error.h>
 #include <log.h>
 
-#define HOME_ENV "HOME"
-#define DEFAULT_DB_DIR ".budget_app"
+int32_t open_budget_db(db_connection* db) {
+	int32_t rc;
 
-static sqlite3* g_sql = NULL;
-
-static char* get_db_path() {
-	const char* home_dir = getenv(HOME_ENV);
-	if (!home_dir) {
-		ERR_LOG("Failed to get home directory. [%s] not set", HOME_ENV);
-		return NULL;
+	if (!db) {
+		ERR_LOG("DB db is NULL");
+		return ERR_INVALID;
 	}
 
-	DEBUG_LOG("Got home dir [%s]", home_dir);
-	char* db_path = (char*)malloc(
-		sizeof(char) * (strlen(home_dir) + strlen(DEFAULT_DB_DIR) + 2));
-	if (!db_path) {
-		ERR_LOG("Failed to allocate memory for db_path");
-	}
-
-	strcpy(db_path, home_dir);
-	strcat(db_path, "/");
-	strcat(db_path, DEFAULT_DB_DIR);
-
-	DEBUG_LOG("Got DB directory path [%s]", db_path);
-
-	return db_path;
-}
-
-int32_t open_budget_db() {
-	if (g_sql) {
+	if (db->handle) {
 		WARN_LOG("Connection to budget DB is already open");
 		return ERR_OK;
 	}
 
-	DEBUG_LOG("Opening connection to budget DB");
+	DEBUG_LOG("Opening db to budget DB");
 
-	char* db_path = get_db_path();
-	if (!db_path) {
-		ERR_LOG("Failed to get DB path");
-	}
-
-	int32_t rc = open_db(db_path, &g_sql);
+	rc = open_db(db);
 	if (ERR_OK != rc) {
 		ERR_LOG("Failed to open db: [%d:%s]",
 			rc, error_to_string(rc));
-		free(db_path);
 		return rc;
 	}
-
-	free(db_path);
 
 	return ERR_OK;
 }
 
-int32_t close_budget_db() {
-	DEBUG_LOG("Closing connection to budget DB");
+int32_t close_budget_db(db_connection* db) {
+	int32_t rc;
 
-	if (g_sql) {
-		int32_t rc = close_db(g_sql);
+	if (!db) {
+		ERR_LOG("DB db is NULL");
+		return ERR_INVALID;
+	}
+
+	DEBUG_LOG("Closing db to budget DB");
+
+	if (db->handle) {
+		rc = close_db(db);
 		if (ERR_OK != rc) {
-			ERR_LOG("Failed to close connection to budget DB: [%d:%s]",
+			ERR_LOG("Failed to close db to budget DB: [%d:%s]",
 				rc, error_to_string(rc));
 			return rc;
 		}
 	}
 	else {
-		WARN_LOG("No connection to budget DB currently active");
+		WARN_LOG("No db to budget DB currently active");
 	}
 
 	return ERR_OK;
 }
 
-int32_t insert_expenses(expense_list* expenses) {
-	if (!g_sql) {
+int32_t insert_expenses(db_connection* db, expense_list* expenses) {
+	if (!db) {
+		ERR_LOG("DB connection is NULL");
+		return ERR_INVALID;
+	}
+
+	if (!db->handle) {
 		ERR_LOG("No conection to DB available");
 		return ERR_NOT_READY;
 	}
@@ -95,9 +78,18 @@ int32_t insert_expenses(expense_list* expenses) {
 	return ERR_KO;
 }
 
-int32_t get_expenses_in_range(date_range* range, expense_list* expenses) {
-	if (!g_sql) {
-		ERR_LOG("No connection to db available");
+int32_t get_expenses_in_range(
+	db_connection* db,
+	date_range* range,
+	expense_list* expenses) {
+
+	if (!db) {
+		ERR_LOG("DB connection is NULL");
+		return ERR_INVALID;
+	}
+
+	if (!db->handle) {
+		ERR_LOG("No conection to DB available");
 		return ERR_NOT_READY;
 	}
 
@@ -108,11 +100,18 @@ int32_t get_expenses_in_range(date_range* range, expense_list* expenses) {
 }
 
 int32_t get_expenses_in_range_with_payment_type(
+	db_connection* db,
 	date_range* range,
 	uint32_t payment_type,
 	expense_list* expenses) {
-	if (!g_sql) {
-		ERR_LOG("No connection to db available");
+
+	if (!db) {
+		ERR_LOG("DB connection is NULL");
+		return ERR_INVALID;
+	}
+
+	if (!db->handle) {
+		ERR_LOG("No conection to DB available");
 		return ERR_NOT_READY;
 	}
 
@@ -124,11 +123,18 @@ int32_t get_expenses_in_range_with_payment_type(
 }
 
 int32_t get_expenses_in_range_with_expense_type(
+	db_connection* db,
 	date_range* range,
 	uint32_t expense_type,
 	expense_list* expenses) {
-	if (!g_sql) {
-		ERR_LOG("No connection to db available");
+
+	if (!db) {
+		ERR_LOG("DB connection is NULL");
+		return ERR_INVALID;
+	}
+
+	if (!db->handle) {
+		ERR_LOG("No conection to DB available");
 		return ERR_NOT_READY;
 	}
 

@@ -15,6 +15,7 @@
 #define ERR_NOT_PERMITTED -5
 #define ERR_NOT_FOUND -6
 #define ERR_NOT_READY -7
+#define ERR_IN_USE -8
 
 const char* error_to_string(int32_t err);
 
