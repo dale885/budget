@@ -146,6 +146,10 @@ void suiteSetUp() {
 }
 
 int32_t suiteTearDown(int32_t num_failures) {
+
+	NOTICE_LOG("Test [%s] completed with [%d] failures",
+		TEST_NAME, num_failures);
+
 	close_log();
 
 	remove_db_file();
@@ -160,7 +164,6 @@ int32_t suiteTearDown(int32_t num_failures) {
 void setUp() {
 	TEST_ASSERT_EQUAL_INT(ERR_OK, open_db(&db));
 }
-
 
 void tearDown() {
 	if (db.handle) {
