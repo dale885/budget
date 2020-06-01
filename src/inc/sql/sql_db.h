@@ -20,7 +20,7 @@ enum db_type {
 	INT,
 	DOUBLE,
 	TEXT
-};
+} typedef db_type;
 
 /** @struct db_value
   *
@@ -28,13 +28,13 @@ enum db_type {
   *		struct to for representing a value in the database
   */
 struct db_value {
-	enum db_type type;
+	db_type type;
 	union {
 		int32_t int_val;
 		double double_val;
 		char* string_val;
 	} value;
-};
+} typedef db_value;
 
 /** @struct query_param
   *
@@ -44,8 +44,8 @@ struct db_value {
   */
 struct query_param {
 	const char* name;
-	struct db_value param;
-};
+	db_value param;
+} typedef query_param;
 
 /** @struct db_query_result
   *
@@ -56,18 +56,34 @@ struct query_param {
   * 	Caller is responsible for cleaning up values
   */
 struct db_query_result {
-	uint32_t num_rows;
-	uint32_t num_cols;
-	struct db_value** values;
+	size_t num_rows;
+	size_t num_cols;
+	db_value** values;
 
-};
+} typedef db_query_result;
 
+/** @struct db_query
+  *
+  * @details
+  *		Contains all information required to make a query
+  *		to the data base
+  */
 struct db_query {
-	sqlite3* db;
+	sqlite3* handle;
 	const char* query;
-	uint32_t num_params;
-	struct query_param* params;
-};
+	size_t num_params;
+	query_param* params;
+} typedef db_query;
+
+/** @struct db_connection
+  *
+  * @details
+  *		Used when interacting with the database
+  */
+struct db_connection {
+	sqlite3* handle;
+	char* db_path;
+} typedef db_connection;
 
 /** @brief open_db
  *
@@ -82,7 +98,7 @@ struct db_query {
  *
  * @retval 0 if connection created successfully
  */
-int32_t open_db(const char* db_path, sqlite3** db);
+int32_t open_db(db_connection* connection);
 
 /** @brief close_db
   *
@@ -94,7 +110,7 @@ int32_t open_db(const char* db_path, sqlite3** db);
   *
   * @retval 0 if database connection is successfully closed
   */
-int32_t close_db(sqlite3* db);
+int32_t close_db(db_connection* connection);
 
 /** @brief execute_query
   *
@@ -109,7 +125,24 @@ int32_t close_db(sqlite3* db);
   *
   * @retval 0 if query was executed successfully
   */
-int32_t execute_query(struct db_query* query, struct db_query_result* result);
+int32_t execute_query(db_query* query, db_query_result* result);
+
+/** @brief free_results
+  *
+  * @details
+  *		Helper to free results once they are no longer needed
+  *
+  * @param[in] results
+  *		The results to free
+  */
+void free_results(db_query_result* restrict results);
+
+/** @brief free_params
+  *
+  * @details
+  *		Helper to free and text params in param list
+  */
+void free_params(query_param* restrict params, uint32_t num_params);
 
 #endif
 

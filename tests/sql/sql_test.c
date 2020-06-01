@@ -17,36 +17,16 @@
 #define TEST_NAME "budget_app_sql_test"
 #define DB_FILE "budget.db"
 #define HOME_ENV "HOME"
-sqlite3* db = NULL;
-char* DB_DIR;
-
-static void free_params(struct query_param* params, uint32_t num_params) {
-	for (uint32_t i = 0; i < num_params; ++i) {
-		if (TEXT == params[i].param.type) {
-			free(params[i].param.value.string_val);
-		}
-	}
-}
-
-static void free_results(struct db_query_result* results) {
-	for (uint32_t i = 0; i < results->num_rows; ++i) {
-		for (uint32_t j = 0; j < results->num_cols; ++j) {
-			if (TEXT == results->values[i][j].type) {
-				free(results->values[i][j].value.string_val);
-			}
-		}
-		free(results->values[i]);
-	}
-}
+db_connection db = {0};
 
 static void remove_db_file() {
 
 	char* db_file_path = (char*)malloc(
-		sizeof(char) * (strlen(DB_DIR) + strlen(DB_FILE) + 2));
+		sizeof(char) * (strlen(db.db_path) + strlen(DB_FILE) + 2));
 
 	TEST_ASSERT_NOT_NULL(db_file_path);
 
-	strcpy(db_file_path, DB_DIR);
+	strcpy(db_file_path, db.db_path);
 	strcat(db_file_path, "/");
 	strcat(db_file_path, DB_FILE);
 
@@ -60,7 +40,7 @@ static void remove_db_file() {
 
 static void create_test_table() {
 	struct db_query query = {NULL, NULL, 0, NULL};
-	query.db = db;
+	query.handle = db.handle;
 	query.query = CREATE_TEST_TABLE;
 
 	TEST_ASSERT_EQUAL_INT(ERR_OK, execute_query(&query, NULL));
@@ -71,10 +51,10 @@ static void generate_insert_row_params(
 	int32_t int_val,
 	double double_val,
 	const char* text_val,
-	struct query_param** params) {
+	query_param** params) {
 
-	*params = (struct query_param*)malloc(
-		sizeof(struct query_param) * 4);
+	*params = (query_param*)malloc(
+		sizeof(query_param) * 4);
 
 	(*params)[0].name = ID_PARAM;
 	(*params)[0].param.type = INT;
@@ -101,11 +81,11 @@ static void insert_rows(
 	const char** text_val,
 	uint32_t num_rows) {
 
-	struct query_param** params = (struct query_param**)malloc(
-		sizeof(struct query_param*));
+	query_param** params = (query_param**)malloc(
+		sizeof(query_param*));
 	TEST_ASSERT_NOT_NULL(params);
 
-	struct db_query query = {db, INSERT_ROW, 4, NULL};
+	struct db_query query = {db.handle, INSERT_ROW, 4, NULL};
 	for (uint32_t i = 0; i < num_rows; ++i) {
 		generate_insert_row_params(
 			i+1,
@@ -136,57 +116,58 @@ void suiteSetUp() {
 	const char* home_dir = getenv(HOME_ENV);
 	TEST_ASSERT_NOT_NULL(home_dir);
 
-	DB_DIR = (char*)malloc(sizeof(char) * (strlen(home_dir) + 1));
-	TEST_ASSERT_NOT_NULL(DB_DIR);
+	db.db_path = (char*)malloc(sizeof(char) * (strlen(home_dir) + 1));
+	TEST_ASSERT_NOT_NULL(db.db_path);
 
-	strcpy(DB_DIR, home_dir);
+	strcpy(db.db_path, home_dir);
 
-	NOTICE_LOG("Using directory [%s] for testing", DB_DIR);
+	NOTICE_LOG("Using directory [%s] for testing", db.db_path);
 
 	remove_db_file();
 }
 
 int32_t suiteTearDown(int32_t num_failures) {
+
+	NOTICE_LOG("Test [%s] completed with [%d] failures",
+		TEST_NAME, num_failures);
+
 	close_log();
 
 	remove_db_file();
 
-	if (DB_DIR) {
-		free(DB_DIR);
+	if (db.db_path) {
+		free(db.db_path);
 	}
 
 	return num_failures != 0 ? ERR_KO : ERR_OK;
 }
 
 void setUp() {
-	TEST_ASSERT_EQUAL_INT(ERR_OK, open_db(DB_DIR, &db));
+	TEST_ASSERT_EQUAL_INT(ERR_OK, open_db(&db));
 }
 
-
 void tearDown() {
-	if (db) {
-		close_db(db);
-		db = NULL;
+	if (db.handle) {
+		close_db(&db);
+		db.handle = NULL;
 	}
 	remove_db_file();
 }
 
 void test_open_db_with_invalid_arguments() {
-	TEST_ASSERT_EQUAL_INT(ERR_OK, close_db(db));
+	db_connection test = {0};
 
-	TEST_ASSERT_EQUAL_INT(ERR_INVALID, open_db(NULL, &db));
-	TEST_ASSERT_EQUAL_INT(ERR_INVALID, open_db(DB_DIR, NULL));
-	TEST_ASSERT_EQUAL_INT(ERR_INVALID, open_db(NULL, NULL));
+	TEST_ASSERT_EQUAL_INT(ERR_IN_USE, open_db(&db));
+	TEST_ASSERT_EQUAL_INT(ERR_OK, close_db(&db));
 
-	TEST_ASSERT_EQUAL_INT(ERR_KO, open_db("/etc/", &db));
-	TEST_ASSERT_EQUAL_INT(ERR_KO, open_db("//", &db));
-	TEST_ASSERT_EQUAL_INT(ERR_KO, open_db("", &db));
+	TEST_ASSERT_EQUAL_INT(ERR_INVALID, open_db(&test));
+	TEST_ASSERT_EQUAL_INT(ERR_INVALID, open_db(NULL));
 }
 
 void test_execute_with_invalid_query() {
-	struct db_query query = { NULL, NULL, 0, NULL};
+	db_query query = {0};
 
-	query.db = db;
+	query.handle = db.handle;
 
 	TEST_ASSERT_EQUAL_INT(ERR_INVALID, execute_query(NULL, NULL));
 
@@ -214,15 +195,15 @@ void test_execute_with_results() {
 
 	insert_rows(int_vals, double_vals, text_vals, 5);
 
-	struct db_query query = {db, SELECT_ROW_WITH_ID, 1, NULL};
-	query.params = (struct query_param*)malloc(
-		sizeof(struct query_param) * query.num_params);
+	db_query query = {db.handle, SELECT_ROW_WITH_ID, 1, NULL};
+	query.params = (query_param*)malloc(
+		sizeof(query_param) * query.num_params);
 	query.params->name = "$id_param";
 	query.params->param.type = INT;
 	query.params->param.value.int_val = 2;
 	uint32_t result_index = 1;
 
-	struct db_query_result result = {0};
+	db_query_result result = {0};
 
 	TEST_ASSERT_EQUAL_INT(ERR_OK, execute_query(&query, &result));
 
@@ -243,7 +224,7 @@ void test_execute_with_results() {
 }
 
 void test_table_queries() {
-	struct db_query query = {db, CREATE_TEST_TABLE, 0, NULL};
+	db_query query = {db.handle, CREATE_TEST_TABLE, 0, NULL};
 
 	create_test_table();
 
@@ -253,7 +234,7 @@ void test_table_queries() {
 void test_queries_with_invalid_params() {
 	create_test_table();
 
-	struct db_query query = {db, INSERT_ROW, 0, NULL};
+	db_query query = {db.handle, INSERT_ROW, 0, NULL};
 
 	TEST_ASSERT_EQUAL_INT(ERR_KO, execute_query(&query, NULL));
 

@@ -13,10 +13,12 @@ static const char* ERR_TO_STRING[] = {
 	"Err Invalid",
 	"Err Busy",
 	"Err Not Permitted",
-	"Err Not Found"
+	"Err Not Found",
+	"Err Not Ready",
+	"Err In Use"
 };
 
-#define MAX_ERROR_NUMBER 6
+#define MAX_ERROR_NUMBER sizeof(ERR_TO_STRING)
 
 const char* error_to_string(int32_t err) {
 	if (MAX_ERROR_NUMBER < -err) {
