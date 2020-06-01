@@ -21,14 +21,16 @@ db_connection db;
 
 static void remove_db_file() {
 	struct stat st;
+	size_t path_length = strlen(db.db_path) + 1;
+	size_t file_name_length = strlen(DB_FILE) + 1;
 	char* db_file_path = (char*)malloc(
-		sizeof(char) * (strlen(db.db_path) + strlen(DB_FILE) + 2));
+		sizeof(char) * (path_length + file_name_length + 2));
 
 	TEST_ASSERT_NOT_NULL(db_file_path);
 
-	strncpy(db_file_path, db.db_path, strlen(db.db_path));
+	strncpy(db_file_path, db.db_path, path_length);
 	strncat(db_file_path, "/", 1);
-	strncat(db_file_path, DB_FILE, strlen(DB_FILE));
+	strncat(db_file_path, DB_FILE, file_name_length);
 
 	if (0 == stat(db_file_path, &st)) {
 		DEBUG_LOG("Removing db file [%s]", db_file_path);
@@ -39,15 +41,23 @@ static void remove_db_file() {
 }
 
 void suiteSetUp() {
-	open_log(TEST_NAME);
 
 	const char* home_dir = getenv(HOME_ENV);
+	size_t home_dir_length;
+
+	open_log(TEST_NAME);
 	TEST_ASSERT_NOT_NULL(home_dir);
 
-	db.db_path = (char*)malloc(sizeof(char) * (strlen(home_dir) + 1));
+	DEBUG_LOG("Got home directory [%s]", home_dir);
+
+	home_dir_length = strlen(home_dir) + 1;
+
+	DEBUG_LOG("Got home directory length [%u]", home_dir_length);
+
+	db.db_path = (char*)malloc(sizeof(char) * (home_dir_length + 1));
 	TEST_ASSERT_NOT_NULL(db.db_path);
 
-	strcpy(db.db_path, home_dir);
+	strncpy(db.db_path, home_dir, home_dir_length);
 
 	NOTICE_LOG("Using directory [%s] for testing", db.db_path);
 

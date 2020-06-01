@@ -471,3 +471,29 @@ int32_t execute_query(db_query* query, db_query_result* result)
 	return ERR_OK;
 }
 
+void free_results(db_query_result* restrict results) {
+	if (!results ||
+		!results->values) {
+		return;
+	}
+
+	for (uint32_t i = 0; i < results->num_rows; ++i) {
+		for (uint32_t j = 0; j < results->num_cols; ++j) {
+			if (TEXT == results->values[i][j].type) {
+				free(results->values[i][j].value.string_val);
+			}
+		}
+		free(results->values[i]);
+	}
+
+	free(results->values);
+}
+
+void free_params(query_param* restrict params, uint32_t num_params) {
+	for (uint32_t i = 0; i < num_params; ++i) {
+		if (TEXT == params[i].param.type) {
+			free(params[i].param.value.string_val);
+		}
+	}
+}
+

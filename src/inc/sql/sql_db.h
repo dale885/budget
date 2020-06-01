@@ -127,5 +127,22 @@ int32_t close_db(db_connection* connection);
   */
 int32_t execute_query(db_query* query, db_query_result* result);
 
+/** @brief free_results
+  *
+  * @details
+  *		Helper to free results once they are no longer needed
+  *
+  * @param[in] results
+  *		The results to free
+  */
+void free_results(db_query_result* restrict results);
+
+/** @brief free_params
+  *
+  * @details
+  *		Helper to free and text params in param list
+  */
+void free_params(query_param* restrict params, uint32_t num_params);
+
 #endif
 

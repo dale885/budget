@@ -19,25 +19,6 @@
 #define HOME_ENV "HOME"
 db_connection db = {0};
 
-static void free_params(query_param* params, uint32_t num_params) {
-	for (uint32_t i = 0; i < num_params; ++i) {
-		if (TEXT == params[i].param.type) {
-			free(params[i].param.value.string_val);
-		}
-	}
-}
-
-static void free_results(db_query_result* results) {
-	for (uint32_t i = 0; i < results->num_rows; ++i) {
-		for (uint32_t j = 0; j < results->num_cols; ++j) {
-			if (TEXT == results->values[i][j].type) {
-				free(results->values[i][j].value.string_val);
-			}
-		}
-		free(results->values[i]);
-	}
-}
-
 static void remove_db_file() {
 
 	char* db_file_path = (char*)malloc(

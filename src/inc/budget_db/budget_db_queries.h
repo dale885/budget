@@ -17,21 +17,33 @@
 #define DATE_PARAM "$date"
 #define PAYMENT_TYPE_PARAM "$payment_type"
 #define EXPENSE_TYPE_PARAM "$expense_type"
+#define DESCRIPTION_PARAM "$description"
+
+#define ID_INDEX 0
+#define AMOUNT_INDEX 1
+#define DATE_INDEX 2
+#define PAYMENT_TYPE_INDEX 3
+#define EXPENSE_TYPE_INDEX 4
+#define DESCRIPTION_INDEX 5
+
+#define NUM_EXPENSE_PARAMS 6
+
 #define START_DATE_PARAM "$start"
-#define END_DATE_PARAM = "$end"
+#define END_DATE_PARAM "$end"
+
+
+#define BEGIN_TRANSACTION "BEGIN TRANSACTION"
+
+#define END_TRANSACTION "END TRANSACTION"
 
 #define CREATE_EXPENSES_TABLE \
-	"CREATE TABLE expenses(" \
+	"CREATE TABLE IF NOT EXISTS expenses(" \
 	"id INT PRIMARY KEY NOT NULL," \
 	"amount REAL NOT NULL," \
 	"date INT NOT NULL," \
 	"payment_type INT NOT NULL," \
 	"expense_type INT NOT NULL," \
 	"description TEXT NOT NULL);"
-
-#define CHECK_EXPENSES_TABLE_EXISTS \
-	"SELECT COUNT(*) FROM sqlite_master WHERE type='table' " \
-	"AND name='expenses';"
 
 #define INSERT_EXPENSE \
 	"INSERT INTO expenses (" \
@@ -40,7 +52,7 @@
 	"date, " \
 	"payment_type, " \
 	"expense_type, " \
-	"payment_type) "\
+	"description) "\
 	"VALUES ($id, $amount, $date, $payment_type, $expense_type, $description);"
 
 #define SELECT_EXPENSES_IN_RANGE \
