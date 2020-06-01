@@ -491,8 +491,10 @@ void free_results(db_query_result* restrict results) {
 
 void free_params(query_param* restrict params, uint32_t num_params) {
 	for (uint32_t i = 0; i < num_params; ++i) {
-		if (TEXT == params[i].param.type) {
+		if (TEXT == params[i].param.type &&
+			params[i].param.value.string_val) {
 			free(params[i].param.value.string_val);
+			params[i].param.value.string_val = NULL;
 		}
 	}
 }

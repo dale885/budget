@@ -162,7 +162,7 @@ int32_t insert_expenses(db_connection* db, expense_list* expenses) {
 		query.params[EXPENSE_TYPE_INDEX].param.type = INT;
 		query.params[EXPENSE_TYPE_INDEX].param.value.int_val = expenses->expenses[i].expense_type; 
 
-		description_length = strlen(expenses->expenses[i].description);
+		description_length = strlen(expenses->expenses[i].description) + 1;
 		query.params[DESCRIPTION_INDEX].name = DESCRIPTION_PARAM;
 		query.params[DESCRIPTION_INDEX].param.type = TEXT;
 		query.params[DESCRIPTION_INDEX].param.value.string_val = (char*)malloc(sizeof(char) * description_length);
