@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdio.h>
 
 #include <unity.h>
 
@@ -18,6 +19,19 @@
 #define SECONDS_IN_A_DAY 86400
 
 db_connection db;
+
+static void print_expenses(expense_list* restrict expenses) {
+	size_t i;
+	for (i = 0; i < expenses->num_expenses; ++i) {
+
+		DEBUG_LOG("Got expense [%f, %ld, %u, %u, %s]",
+			expenses->expenses[i].amount,
+			expenses->expenses[i].date,
+			expenses->expenses[i].payment_type,
+			expenses->expenses[i].expense_type,
+			expenses->expenses[i].description);
+	}
+}
 
 static void remove_db_file() {
 	struct stat st;
@@ -159,47 +173,81 @@ void test_get_expenses() {
 	expenses.expenses = NULL;
 	expenses.num_expenses = 0;
 
-	range.end = time(NULL) - SECONDS_IN_A_DAY;
-	range.start = time(NULL);
-	TEST_ASSERT_EQUAL_INT(ERR_INVALID, get_expenses_in_range(&db, &range, &expenses));
-
 	range.start = 0;
-	range.end = 0;
+	range.end = time(NULL);
 	TEST_ASSERT_EQUAL_INT(ERR_OK, get_expenses_in_range(&db, &range, &expenses));
 	TEST_ASSERT_NOT_NULL(expenses.expenses);
 	TEST_ASSERT_EQUAL_UINT(num_expenses, expenses.num_expenses);
+
+	print_expenses(&expenses);
+
+	for (i = 0; i < expenses.num_expenses; ++i) {
+		TEST_ASSERT_EQUAL_DOUBLE(i * 1.00, expenses.expenses[i].amount);
+		TEST_ASSERT_EQUAL_INT(expense_date - i * SECONDS_IN_A_DAY, expenses.expenses[i].date);
+		TEST_ASSERT_EQUAL_UINT(i % 3, expenses.expenses[i].expense_type);
+		TEST_ASSERT_EQUAL_UINT(i % 4, expenses.expenses[i].payment_type);
+		TEST_ASSERT_EQUAL_STRING("Test expense", expenses.expenses[i].description);
+	}
 
 	free(expenses.expenses);
 	expenses.expenses = NULL;
 	expenses.num_expenses = 0;
 
-	range.start = expense_date - (5 * SECONDS_IN_A_DAY);
+	range.start = expense_date - (5 * SECONDS_IN_A_DAY) + 1;
 	range.end = time(NULL);
 	TEST_ASSERT_EQUAL_INT(ERR_OK, get_expenses_in_range(&db, &range, &expenses));
 	TEST_ASSERT_NOT_NULL(expenses.expenses);
 	TEST_ASSERT_EQUAL_UINT(5, expenses.num_expenses);
 
+	print_expenses(&expenses);
+
+	for (i = 0; i < expenses.num_expenses; ++i) {
+		TEST_ASSERT_EQUAL_DOUBLE(i * 1.00, expenses.expenses[i].amount);
+		TEST_ASSERT_EQUAL_INT(expense_date - (i * SECONDS_IN_A_DAY), expenses.expenses[i].date);
+		TEST_ASSERT_EQUAL_UINT(i % 3, expenses.expenses[i].expense_type);
+		TEST_ASSERT_EQUAL_UINT(i % 4, expenses.expenses[i].payment_type);
+		TEST_ASSERT_EQUAL_STRING("Test expense", expenses.expenses[i].description);
+	}
+
 	free(expenses.expenses);
 	expenses.expenses = NULL;
 	expenses.num_expenses = 0;
 
-	range.end = expense_date - (5 * SECONDS_IN_A_DAY - 1);
+	range.end = expense_date - (5 * SECONDS_IN_A_DAY);
 	range.start = 0;
 	TEST_ASSERT_EQUAL_INT(ERR_OK, get_expenses_in_range(&db, &range, &expenses));
 
 	TEST_ASSERT_NOT_NULL(expenses.expenses);
 	TEST_ASSERT_EQUAL_UINT(5, expenses.num_expenses);
 
+	print_expenses(&expenses);
+
+	for (i = 0; i < expenses.num_expenses; ++i) {
+		TEST_ASSERT_EQUAL_DOUBLE((i + 5) * 1.00, expenses.expenses[i].amount);
+		TEST_ASSERT_EQUAL_INT(expense_date - ((i + 5) * SECONDS_IN_A_DAY), expenses.expenses[i].date);
+		TEST_ASSERT_EQUAL_UINT((i + 5) % 3, expenses.expenses[i].expense_type);
+		TEST_ASSERT_EQUAL_UINT((i + 5) % 4, expenses.expenses[i].payment_type);
+		TEST_ASSERT_EQUAL_STRING("Test expense", expenses.expenses[i].description);
+	}
+
 	free(expenses.expenses);
 	expenses.expenses = NULL;
 	expenses.num_expenses = 0;
 
 	range.start = 0;
-	range.end = 0;
-	TEST_ASSERT_EQUAL_UINT(ERR_OK, get_expenses_in_range_with_payment_type(&db, &range, 0, &expenses));
+	range.end = time(NULL);
+	TEST_ASSERT_EQUAL_INT(ERR_OK, get_expenses_in_range_with_payment_type(&db, &range, 0, &expenses));
 
 	TEST_ASSERT_NOT_NULL(expenses.expenses);
 	TEST_ASSERT_EQUAL_UINT(3, expenses.num_expenses);
+
+	print_expenses(&expenses);
+
+	for (i = 0; i < expenses.num_expenses; ++i) {
+		TEST_ASSERT_EQUAL_DOUBLE(i * 4.00, expenses.expenses[i].amount);
+		TEST_ASSERT_EQUAL_INT(expense_date - ((i * 4) * SECONDS_IN_A_DAY), expenses.expenses[i].date);
+		TEST_ASSERT_EQUAL_UINT(0, expenses.expenses[i].payment_type);
+	}
 
 	free(expenses.expenses);
 	expenses.expenses = NULL;
@@ -209,6 +257,14 @@ void test_get_expenses() {
 
 	TEST_ASSERT_NOT_NULL(expenses.expenses);
 	TEST_ASSERT_EQUAL_UINT(4, expenses.num_expenses);
+
+	print_expenses(&expenses);
+
+	for (i = 0; i < expenses.num_expenses; ++i) {
+		TEST_ASSERT_EQUAL_DOUBLE(i * 3.00, expenses.expenses[i].amount);
+		TEST_ASSERT_EQUAL_INT(expense_date - ((i * 3) * SECONDS_IN_A_DAY), expenses.expenses[i].date);
+		TEST_ASSERT_EQUAL_UINT(0, expenses.expenses[i].expense_type);
+	}
 
 	free(expenses.expenses);
 	expenses.expenses = NULL;

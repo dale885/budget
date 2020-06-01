@@ -13,6 +13,37 @@
 #include <error.h>
 #include <log.h>
 
+static void result_to_expense(db_query_result* restrict result, expense_list* restrict expenses) {
+
+	size_t i;
+	size_t description_length;
+	expenses->num_expenses = result->num_rows;
+	expenses->expenses = (expense*)malloc(sizeof(expense) * result->num_rows);
+	for (i = 0; i < expenses->num_expenses; ++i) {
+		DEBUG_LOG("Got result row [%f, %ld, %u, %u, %s]",
+			result->values[i][AMOUNT_INDEX].value.double_val,
+			result->values[i][DATE_INDEX].value.int_val,
+			result->values[i][PAYMENT_TYPE_INDEX].value.int_val,
+			result->values[i][EXPENSE_TYPE_INDEX].value.int_val,
+			result->values[i][DESCRIPTION_INDEX].value.string_val);
+
+		expenses->expenses[i].amount = result->values[i][AMOUNT_INDEX].value.double_val;
+
+		expenses->expenses[i].date = result->values[i][DATE_INDEX].value.int_val;
+		expenses->expenses[i].payment_type = result->values[i][PAYMENT_TYPE_INDEX].value.int_val;
+		expenses->expenses[i].expense_type = result->values[i][EXPENSE_TYPE_INDEX].value.int_val;
+
+		description_length = strlen(result->values[i][DESCRIPTION_INDEX].value.string_val) + 1;
+
+		expenses->expenses[i].description = (char*)malloc(
+			sizeof(char) * description_length);
+		strncpy(
+			expenses->expenses[i].description,
+			result->values[i][DESCRIPTION_INDEX].value.string_val,
+			description_length);
+	}
+}
+
 int32_t open_budget_db(db_connection* db) {
 	int32_t rc;
 	db_query query = {0};
@@ -182,14 +213,14 @@ CLEAN_UP:
 	if (query.params) {
 		free_params(query.params, query.num_params);
 		free(query.params);
-		query.params = NULL;
-		query.num_params = 0;
 	}
 
 	free_results(&result);
 
 	if (transaction_started) {
 		query.query = END_TRANSACTION;
+		query.params = NULL;
+		query.num_params = 0;
 		if (ERR_OK != execute_query(&query, NULL)) {
 			WARN_LOG("Failed to end transaction");
 			rc = (rc == ERR_OK) ? ERR_KO : rc;
@@ -203,6 +234,10 @@ int32_t get_expenses_in_range(
 	db_connection* db,
 	date_range* range,
 	expense_list* expenses) {
+
+	db_query query = {0};
+	db_query_result result = {0};
+	int32_t rc;
 
 	if (!db) {
 		ERR_LOG("DB connection is NULL");
@@ -224,12 +259,53 @@ int32_t get_expenses_in_range(
 		return ERR_INVALID;
 	}
 
-	if (range->start > range->end) {
-		ERR_LOG("Start date is after end date");
-		return ERR_INVALID;
+	query.handle = db->handle;
+	query.query = SELECT_EXPENSES_IN_RANGE;
+	query.num_params = NUM_RANGE_PARAMS;
+	query.params = (query_param*)malloc(sizeof(query_param) * NUM_RANGE_PARAMS);
+
+	if (!query.params) {
+		ERR_LOG("Failed to allocate memory for params");
+		return ERR_NOMEM;
 	}
 
-	return ERR_KO;
+	query.params[START_DATE_INDEX].name = START_DATE_PARAM;
+	query.params[START_DATE_INDEX].param.type = INT;
+	query.params[START_DATE_INDEX].param.value.int_val = range->start;
+
+	query.params[END_DATE_INDEX].name = END_DATE_PARAM;
+	query.params[END_DATE_INDEX].param.type = INT;
+	query.params[END_DATE_INDEX].param.value.int_val = range->end;
+
+	DEBUG_LOG("Getting expenses in date range [%d:%d]", range->start, range->end);
+
+	rc = execute_query(&query, &result);
+	if (ERR_OK != rc) {
+		ERR_LOG("Failed to get expenses");
+		goto CLEAN_UP;
+	}
+
+	if (!result.num_rows) {
+		INFO_LOG("No expenses matching query found");
+		return ERR_OK;
+	}
+
+	if (NUM_EXPENSE_PARAMS != result.num_cols) {
+		ERR_LOG("Received [%u] result columns but was expecting [%u]", result.num_cols, NUM_EXPENSE_PARAMS);
+		goto CLEAN_UP;
+	}
+
+	result_to_expense(&result, expenses);
+
+CLEAN_UP:
+
+	if (query.params) {
+		free(query.params);
+	}
+
+	free_results(&result);
+
+	return rc;
 }
 
 int32_t get_expenses_in_range_with_payment_type(
@@ -238,6 +314,10 @@ int32_t get_expenses_in_range_with_payment_type(
 	uint32_t payment_type,
 	expense_list* expenses) {
 
+	int32_t rc;
+	db_query query = {0};
+	db_query_result result = {0};
+
 	if (!db) {
 		ERR_LOG("DB connection is NULL");
 		return ERR_INVALID;
@@ -248,11 +328,67 @@ int32_t get_expenses_in_range_with_payment_type(
 		return ERR_NOT_READY;
 	}
 
-	(void)range;
-	(void)payment_type;
-	(void)expenses;
+	if (!expenses) {
+		ERR_LOG("Expenses structure is NULL");
+		return ERR_INVALID;
+	}
 
-	return ERR_KO;
+	if (!range) {
+		ERR_LOG("Date range is NULL");
+		return ERR_INVALID;
+	}
+
+	query.handle = db->handle;
+	query.query = SELECT_EXPENSES_IN_RANGE_WITH_PAYMENT_TYPE;
+	query.num_params = NUM_RANGE_PARAMS_WITH_TYPE;
+	query.params = (query_param*)malloc(sizeof(query_param) * NUM_RANGE_PARAMS_WITH_TYPE);
+
+	if (!query.params) {
+		ERR_LOG("Failed to allocate memory for params");
+		return ERR_NOMEM;
+	}
+
+	query.params[START_DATE_INDEX].name = START_DATE_PARAM;
+	query.params[START_DATE_INDEX].param.type = INT;
+	query.params[START_DATE_INDEX].param.value.int_val = range->start;
+
+	query.params[END_DATE_INDEX].name = END_DATE_PARAM;
+	query.params[END_DATE_INDEX].param.type = INT;
+	query.params[END_DATE_INDEX].param.value.int_val = range->end;
+
+	query.params[TYPE_INDEX].name = PAYMENT_TYPE_PARAM;
+	query.params[TYPE_INDEX].param.type = INT;
+	query.params[TYPE_INDEX].param.value.int_val = payment_type;
+
+	DEBUG_LOG("Getting expenses in date range [%d:%d] with payment type [%u]", range->start, range->end, payment_type);
+
+	rc = execute_query(&query, &result);
+	if (ERR_OK != rc) {
+		ERR_LOG("Failed to get expenses");
+		goto CLEAN_UP;
+	}
+
+	if (!result.num_rows) {
+		INFO_LOG("No expenses matching query found");
+		return ERR_OK;
+	}
+
+	if (NUM_EXPENSE_PARAMS != result.num_cols) {
+		ERR_LOG("Received [%u] result columns but was expecting [%u]", result.num_cols, NUM_EXPENSE_PARAMS);
+		goto CLEAN_UP;
+	}
+
+	result_to_expense(&result, expenses);
+
+CLEAN_UP:
+
+	if (query.params) {
+		free(query.params);
+	}
+
+	free_results(&result);
+
+	return rc;
 }
 
 int32_t get_expenses_in_range_with_expense_type(
@@ -261,6 +397,10 @@ int32_t get_expenses_in_range_with_expense_type(
 	uint32_t expense_type,
 	expense_list* expenses) {
 
+	int32_t rc;
+	db_query query = {0};
+	db_query_result result = {0};
+
 	if (!db) {
 		ERR_LOG("DB connection is NULL");
 		return ERR_INVALID;
@@ -271,10 +411,66 @@ int32_t get_expenses_in_range_with_expense_type(
 		return ERR_NOT_READY;
 	}
 
-	(void)range;
-	(void)expense_type;
-	(void)expenses;
+	if (!expenses) {
+		ERR_LOG("Expenses structure is NULL");
+		return ERR_INVALID;
+	}
 
-	return ERR_KO;
+	if (!range) {
+		ERR_LOG("Date range is NULL");
+		return ERR_INVALID;
+	}
+
+	query.handle = db->handle;
+	query.query = SELECT_EXPENSES_IN_RANGE_WITH_EXPENSE_TYPE;
+	query.num_params = NUM_RANGE_PARAMS_WITH_TYPE;
+	query.params = (query_param*)malloc(sizeof(query_param) * NUM_RANGE_PARAMS_WITH_TYPE);
+
+	if (!query.params) {
+		ERR_LOG("Failed to allocate memory for params");
+		return ERR_NOMEM;
+	}
+
+	query.params[START_DATE_INDEX].name = START_DATE_PARAM;
+	query.params[START_DATE_INDEX].param.type = INT;
+	query.params[START_DATE_INDEX].param.value.int_val = range->start;
+
+	query.params[END_DATE_INDEX].name = END_DATE_PARAM;
+	query.params[END_DATE_INDEX].param.type = INT;
+	query.params[END_DATE_INDEX].param.value.int_val = range->end;
+
+	query.params[TYPE_INDEX].name = EXPENSE_TYPE_PARAM;
+	query.params[TYPE_INDEX].param.type = INT;
+	query.params[TYPE_INDEX].param.value.int_val = expense_type;
+
+	DEBUG_LOG("Getting expenses in date range [%d:%d] with expense type [%u]" , range->start, range->end, expense_type);
+
+	rc = execute_query(&query, &result);
+	if (ERR_OK != rc) {
+		ERR_LOG("Failed to get expenses");
+		goto CLEAN_UP;
+	}
+
+	if (!result.num_rows) {
+		INFO_LOG("No expenses matching query found");
+		return ERR_OK;
+	}
+
+	if (NUM_EXPENSE_PARAMS != result.num_cols) {
+		ERR_LOG("Received [%u] result columns but was expecting [%u]", result.num_cols, NUM_EXPENSE_PARAMS);
+		goto CLEAN_UP;
+	}
+
+	result_to_expense(&result, expenses);
+
+CLEAN_UP:
+
+	if (query.params) {
+		free(query.params);
+	}
+
+	free_results(&result);
+
+	return rc;
 }
 

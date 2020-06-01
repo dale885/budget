@@ -31,6 +31,12 @@
 #define START_DATE_PARAM "$start"
 #define END_DATE_PARAM "$end"
 
+#define NUM_RANGE_PARAMS 2
+#define NUM_RANGE_PARAMS_WITH_TYPE 3
+
+#define START_DATE_INDEX 0
+#define END_DATE_INDEX 1
+#define TYPE_INDEX 2
 
 #define BEGIN_TRANSACTION "BEGIN TRANSACTION"
 
