@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include <log.h>
+#include <budget_db/budget_db.h>
 
 int main(int argc, char** argv) {
 
