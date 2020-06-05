@@ -48,9 +48,9 @@ static void create_test_table() {
 
 static void generate_insert_row_params(
 	int32_t id,
-	int32_t int_val,
-	double double_val,
-	const char* text_val,
+	int32_t int_value,
+	double double_value,
+	const char* text_value,
 	query_param** params) {
 
 	*params = (query_param*)malloc(
@@ -58,27 +58,27 @@ static void generate_insert_row_params(
 
 	(*params)[0].name = ID_PARAM;
 	(*params)[0].param.type = INT;
-	(*params)[0].param.value.int_val = id;
+	(*params)[0].param.value.int_value = id;
 
 	(*params)[1].name = INT_VAL_PARAM;
 	(*params)[1].param.type = INT;
-	(*params)[1].param.value.int_val = int_val;
+	(*params)[1].param.value.int_value = int_value;
 
 	(*params)[2].name = DOUBLE_VAL_PARAM;
 	(*params)[2].param.type = DOUBLE;
-	(*params)[2].param.value.double_val = double_val;
+	(*params)[2].param.value.double_value = double_value;
 
 	(*params)[3].name = TEXT_VAL_PARAM;
-	(*params)[3].param.type = TEXT;
-	(*params)[3].param.value.string_val = (char*)malloc(strlen(text_val) + 1);
-	TEST_ASSERT_NOT_NULL((*params)[3].param.value.string_val);
-	strcpy((*params)[3].param.value.string_val, text_val);
+	(*params)[3].param.type = STRING;
+	(*params)[3].param.value.string_value = (char*)malloc(strlen(text_value) + 1);
+	TEST_ASSERT_NOT_NULL((*params)[3].param.value.string_value);
+	strcpy((*params)[3].param.value.string_value, text_value);
 }
 
 static void insert_rows(
-	int32_t* int_val,
-	double* double_val,
-	const char** text_val,
+	int32_t* int_value,
+	double* double_value,
+	const char** text_value,
 	uint32_t num_rows) {
 
 	query_param** params = (query_param**)malloc(
@@ -89,18 +89,18 @@ static void insert_rows(
 	for (uint32_t i = 0; i < num_rows; ++i) {
 		generate_insert_row_params(
 			i+1,
-			int_val[i],
-			double_val[i],
-			text_val[i],
+			int_value[i],
+			double_value[i],
+			text_value[i],
 			params);
 
 		query.params = *params;
 		DEBUG_LOG("Inserting row [%u]", i);
 		DEBUG_LOG("Got params [%d], [%d], [%f], [%s]",
-			query.params[0].param.value.int_val,
-			query.params[1].param.value.int_val,
-			query.params[2].param.value.double_val,
-			query.params[3].param.value.string_val);
+			query.params[0].param.value.int_value,
+			query.params[1].param.value.int_value,
+			query.params[2].param.value.double_value,
+			query.params[3].param.value.string_value);
 		TEST_ASSERT_EQUAL_INT(ERR_OK, execute_query(&query, NULL));
 
 		free_params(*params, 4);
@@ -183,9 +183,9 @@ void test_execute_with_results() {
 
 	create_test_table();
 
-	int32_t int_vals[5] = { 1, 2, 3, 4, 5 };
-	double double_vals[5] = { 1.15, 2.3, 4.6, 8.2, 16.4 };
-	const char* text_vals[5] = {
+	int32_t int_values[5] = { 1, 2, 3, 4, 5 };
+	double double_values[5] = { 1.15, 2.3, 4.6, 8.2, 16.4 };
+	const char* text_values[5] = {
 		"Row 1",
 		"Row 2",
 		"Row 3",
@@ -193,14 +193,14 @@ void test_execute_with_results() {
 		"Row 5"
 	};
 
-	insert_rows(int_vals, double_vals, text_vals, 5);
+	insert_rows(int_values, double_values, text_values, 5);
 
 	db_query query = {db.handle, SELECT_ROW_WITH_ID, 1, NULL};
 	query.params = (query_param*)malloc(
 		sizeof(query_param) * query.num_params);
 	query.params->name = "$id_param";
 	query.params->param.type = INT;
-	query.params->param.value.int_val = 2;
+	query.params->param.value.int_value = 2;
 	uint32_t result_index = 1;
 
 	db_query_result result = {0};
@@ -211,13 +211,13 @@ void test_execute_with_results() {
 	TEST_ASSERT_EQUAL_UINT(4, result.num_cols);
 	TEST_ASSERT_EQUAL_UINT(1, result.num_rows);
 	TEST_ASSERT_TRUE(result.values[0][0].type == INT);
-	TEST_ASSERT_EQUAL_INT(query.params->param.value.int_val, result.values[0][0].value.int_val);
+	TEST_ASSERT_EQUAL_INT(query.params->param.value.int_value, result.values[0][0].value.int_value);
 	TEST_ASSERT_TRUE(result.values[0][1].type == INT);
-	TEST_ASSERT_EQUAL_INT(int_vals[result_index], result.values[0][1].value.int_val);
+	TEST_ASSERT_EQUAL_INT(int_values[result_index], result.values[0][1].value.int_value);
 	TEST_ASSERT_TRUE(result.values[0][2].type == DOUBLE);
-	TEST_ASSERT_EQUAL_DOUBLE(double_vals[result_index], result.values[0][2].value.double_val);
-	TEST_ASSERT_TRUE(result.values[0][3].type == TEXT);
-	TEST_ASSERT_EQUAL_STRING(text_vals[result_index], result.values[0][3].value.string_val);
+	TEST_ASSERT_EQUAL_DOUBLE(double_values[result_index], result.values[0][2].value.double_value);
+	TEST_ASSERT_TRUE(result.values[0][3].type == STRING);
+	TEST_ASSERT_EQUAL_STRING(text_values[result_index], result.values[0][3].value.string_value);
 
 	free_results(&result);
 	free(query.params);
@@ -243,9 +243,9 @@ void test_queries_with_invalid_params() {
 
 	generate_insert_row_params(1, 9, 5.25, "test", &query.params);
 
-	free(query.params[3].param.value.string_val);
+	free(query.params[3].param.value.string_value);
 	query.params[3].name = NULL;
-	query.params[3].param.value.string_val = NULL;
+	query.params[3].param.value.string_value = NULL;
 
 	execute_query(&query, NULL);
 

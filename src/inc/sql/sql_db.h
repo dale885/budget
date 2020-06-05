@@ -9,32 +9,8 @@
 #include <stdint.h>
 #include <sqlite3.h>
 
+#include <budget_types.h>
 #include <log.h>
-
-/** @enum db_param_type
-  *
-  * @details
-  *		enum for the different parameters type supported for query
-  */
-enum db_type {
-	INT,
-	DOUBLE,
-	TEXT
-} typedef db_type;
-
-/** @struct db_value
-  *
-  * @details
-  *		struct to for representing a value in the database
-  */
-struct db_value {
-	db_type type;
-	union {
-		int32_t int_val;
-		double double_val;
-		char* string_val;
-	} value;
-} typedef db_value;
 
 /** @struct query_param
   *
@@ -44,7 +20,7 @@ struct db_value {
   */
 struct query_param {
 	const char* name;
-	db_value param;
+	budget_value param;
 } typedef query_param;
 
 /** @struct db_query_result
@@ -58,7 +34,7 @@ struct query_param {
 struct db_query_result {
 	size_t num_rows;
 	size_t num_cols;
-	db_value** values;
+	budget_value** values;
 
 } typedef db_query_result;
 

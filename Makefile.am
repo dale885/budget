@@ -11,6 +11,7 @@ noinst_PROGRAMS=				\
 	budget_app
 
 libcommon_a_SOURCES=			\
+	src/common/budget_types.c	\
 	src/common/error.c			\
 	src/common/log.c
 

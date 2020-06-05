@@ -21,25 +21,25 @@ static void result_to_expense(db_query_result* restrict result, expense_list* re
 	expenses->expenses = (expense*)malloc(sizeof(expense) * result->num_rows);
 	for (i = 0; i < expenses->num_expenses; ++i) {
 		DEBUG_LOG("Got result row [%f, %ld, %u, %u, %s]",
-			result->values[i][AMOUNT_INDEX].value.double_val,
-			result->values[i][DATE_INDEX].value.int_val,
-			result->values[i][PAYMENT_TYPE_INDEX].value.int_val,
-			result->values[i][EXPENSE_TYPE_INDEX].value.int_val,
-			result->values[i][DESCRIPTION_INDEX].value.string_val);
+			result->values[i][AMOUNT_INDEX].value.double_value,
+			result->values[i][DATE_INDEX].value.int_value,
+			result->values[i][PAYMENT_TYPE_INDEX].value.int_value,
+			result->values[i][EXPENSE_TYPE_INDEX].value.int_value,
+			result->values[i][DESCRIPTION_INDEX].value.string_value);
 
-		expenses->expenses[i].amount = result->values[i][AMOUNT_INDEX].value.double_val;
+		expenses->expenses[i].amount = result->values[i][AMOUNT_INDEX].value.double_value;
 
-		expenses->expenses[i].date = result->values[i][DATE_INDEX].value.int_val;
-		expenses->expenses[i].payment_type = result->values[i][PAYMENT_TYPE_INDEX].value.int_val;
-		expenses->expenses[i].expense_type = result->values[i][EXPENSE_TYPE_INDEX].value.int_val;
+		expenses->expenses[i].date = result->values[i][DATE_INDEX].value.int_value;
+		expenses->expenses[i].payment_type = result->values[i][PAYMENT_TYPE_INDEX].value.int_value;
+		expenses->expenses[i].expense_type = result->values[i][EXPENSE_TYPE_INDEX].value.int_value;
 
-		description_length = strlen(result->values[i][DESCRIPTION_INDEX].value.string_val) + 1;
+		description_length = strlen(result->values[i][DESCRIPTION_INDEX].value.string_value) + 1;
 
 		expenses->expenses[i].description = (char*)malloc(
 			sizeof(char) * description_length);
 		strncpy(
 			expenses->expenses[i].description,
-			result->values[i][DESCRIPTION_INDEX].value.string_val,
+			result->values[i][DESCRIPTION_INDEX].value.string_value,
 			description_length);
 	}
 }
@@ -154,7 +154,7 @@ int32_t insert_expenses(db_connection* db, expense_list* expenses) {
 		rc = ERR_INVALID;
 		goto CLEAN_UP;
 	}
-	next_id = result.values[0][0].value.int_val + 1;
+	next_id = result.values[0][0].value.int_value + 1;
 
 	query.query = BEGIN_TRANSACTION;
 	rc = execute_query(&query, NULL);
@@ -175,29 +175,29 @@ int32_t insert_expenses(db_connection* db, expense_list* expenses) {
 	for (i = 0; i < expenses->num_expenses; ++i) {
 		query.params[ID_INDEX].name = ID_PARAM;
 		query.params[ID_INDEX].param.type = INT;
-		query.params[ID_INDEX].param.value.int_val = next_id + i;
+		query.params[ID_INDEX].param.value.int_value = next_id + i;
 
 		query.params[AMOUNT_INDEX].name = AMOUNT_PARAM;
 		query.params[AMOUNT_INDEX].param.type = DOUBLE;
-		query.params[AMOUNT_INDEX].param.value.double_val = expenses->expenses[i].amount; 
+		query.params[AMOUNT_INDEX].param.value.double_value = expenses->expenses[i].amount; 
 
 		query.params[DATE_INDEX].name = DATE_PARAM;
 		query.params[DATE_INDEX].param.type = INT;
-		query.params[DATE_INDEX].param.value.int_val = expenses->expenses[i].date; 
+		query.params[DATE_INDEX].param.value.int_value = expenses->expenses[i].date; 
 
 		query.params[PAYMENT_TYPE_INDEX].name = PAYMENT_TYPE_PARAM;
 		query.params[PAYMENT_TYPE_INDEX].param.type = INT;
-		query.params[PAYMENT_TYPE_INDEX].param.value.int_val = expenses->expenses[i].payment_type; 
+		query.params[PAYMENT_TYPE_INDEX].param.value.int_value = expenses->expenses[i].payment_type; 
 
 		query.params[EXPENSE_TYPE_INDEX].name = EXPENSE_TYPE_PARAM;
 		query.params[EXPENSE_TYPE_INDEX].param.type = INT;
-		query.params[EXPENSE_TYPE_INDEX].param.value.int_val = expenses->expenses[i].expense_type; 
+		query.params[EXPENSE_TYPE_INDEX].param.value.int_value = expenses->expenses[i].expense_type; 
 
 		description_length = strlen(expenses->expenses[i].description) + 1;
 		query.params[DESCRIPTION_INDEX].name = DESCRIPTION_PARAM;
-		query.params[DESCRIPTION_INDEX].param.type = TEXT;
-		query.params[DESCRIPTION_INDEX].param.value.string_val = (char*)malloc(sizeof(char) * description_length);
-		strncpy(query.params[DESCRIPTION_INDEX].param.value.string_val, expenses->expenses[i].description, description_length);
+		query.params[DESCRIPTION_INDEX].param.type = STRING;
+		query.params[DESCRIPTION_INDEX].param.value.string_value = (char*)malloc(sizeof(char) * description_length);
+		strncpy(query.params[DESCRIPTION_INDEX].param.value.string_value, expenses->expenses[i].description, description_length);
 
 		rc = execute_query(&query, NULL);
 		if (ERR_OK != rc) {
@@ -271,11 +271,11 @@ int32_t get_expenses_in_range(
 
 	query.params[START_DATE_INDEX].name = START_DATE_PARAM;
 	query.params[START_DATE_INDEX].param.type = INT;
-	query.params[START_DATE_INDEX].param.value.int_val = range->start;
+	query.params[START_DATE_INDEX].param.value.int_value = range->start;
 
 	query.params[END_DATE_INDEX].name = END_DATE_PARAM;
 	query.params[END_DATE_INDEX].param.type = INT;
-	query.params[END_DATE_INDEX].param.value.int_val = range->end;
+	query.params[END_DATE_INDEX].param.value.int_value = range->end;
 
 	DEBUG_LOG("Getting expenses in date range [%d:%d]", range->start, range->end);
 
@@ -350,15 +350,15 @@ int32_t get_expenses_in_range_with_payment_type(
 
 	query.params[START_DATE_INDEX].name = START_DATE_PARAM;
 	query.params[START_DATE_INDEX].param.type = INT;
-	query.params[START_DATE_INDEX].param.value.int_val = range->start;
+	query.params[START_DATE_INDEX].param.value.int_value = range->start;
 
 	query.params[END_DATE_INDEX].name = END_DATE_PARAM;
 	query.params[END_DATE_INDEX].param.type = INT;
-	query.params[END_DATE_INDEX].param.value.int_val = range->end;
+	query.params[END_DATE_INDEX].param.value.int_value = range->end;
 
 	query.params[TYPE_INDEX].name = PAYMENT_TYPE_PARAM;
 	query.params[TYPE_INDEX].param.type = INT;
-	query.params[TYPE_INDEX].param.value.int_val = payment_type;
+	query.params[TYPE_INDEX].param.value.int_value = payment_type;
 
 	DEBUG_LOG("Getting expenses in date range [%d:%d] with payment type [%u]", range->start, range->end, payment_type);
 
@@ -433,15 +433,15 @@ int32_t get_expenses_in_range_with_expense_type(
 
 	query.params[START_DATE_INDEX].name = START_DATE_PARAM;
 	query.params[START_DATE_INDEX].param.type = INT;
-	query.params[START_DATE_INDEX].param.value.int_val = range->start;
+	query.params[START_DATE_INDEX].param.value.int_value = range->start;
 
 	query.params[END_DATE_INDEX].name = END_DATE_PARAM;
 	query.params[END_DATE_INDEX].param.type = INT;
-	query.params[END_DATE_INDEX].param.value.int_val = range->end;
+	query.params[END_DATE_INDEX].param.value.int_value = range->end;
 
 	query.params[TYPE_INDEX].name = EXPENSE_TYPE_PARAM;
 	query.params[TYPE_INDEX].param.type = INT;
-	query.params[TYPE_INDEX].param.value.int_val = expense_type;
+	query.params[TYPE_INDEX].param.value.int_value = expense_type;
 
 	DEBUG_LOG("Getting expenses in date range [%d:%d] with expense type [%u]" , range->start, range->end, expense_type);
 

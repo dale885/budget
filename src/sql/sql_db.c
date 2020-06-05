@@ -87,21 +87,21 @@ static int32_t bind_params(sqlite3_stmt* stmt, size_t num_params, query_param* p
 		{
 			case INT:
 				DEBUG_LOG("Binding value [%d] to param [%s]",
-					param->param.value.int_val, param->name);
-				rc = sqlite3_bind_int(stmt, index, param->param.value.int_val);
+					param->param.value.int_value, param->name);
+				rc = sqlite3_bind_int(stmt, index, param->param.value.int_value);
 				break;
 			case DOUBLE:
 				DEBUG_LOG("Binding value [%f] to param [%s]",
-					param->param.value.double_val, param->name);
-				rc = sqlite3_bind_double(stmt, index, param->param.value.double_val);
+					param->param.value.double_value, param->name);
+				rc = sqlite3_bind_double(stmt, index, param->param.value.double_value);
 				break;
-			case TEXT:
+			case STRING:
 				DEBUG_LOG("Binding value [%s] to param [%s]",
-					param->param.value.string_val, param->name);
+					param->param.value.string_value, param->name);
 				rc = sqlite3_bind_text(
 						stmt,
 						index,
-						param->param.value.string_val,
+						param->param.value.string_value,
 						-1,
 						SQLITE_TRANSIENT);
 				break;
@@ -151,7 +151,7 @@ static int32_t handle_result_row(
 	size_t col;
 	size_t col_len;
 	int32_t col_type;
-	const char* col_value;
+	const char* col_valueue;
 
 	if (!result->values) {
 		ERR_LOG("Result rows have not been allocated");
@@ -168,9 +168,9 @@ static int32_t handle_result_row(
 		return ERR_INVALID;
 	}
 
-	db_value* value =
-		(db_value*)malloc(
-			sizeof(db_value) * result->num_cols);
+	budget_value* value =
+		(budget_value*)malloc(
+			sizeof(budget_value) * result->num_cols);
 
 	if (!value) {
 		ERR_LOG("Failed to allocate db value");
@@ -182,30 +182,30 @@ static int32_t handle_result_row(
 		switch(col_type) {
 			case SQLITE_INTEGER:
 				value[col].type = INT;
-				value[col].value.int_val =
+				value[col].value.int_value =
 					sqlite3_column_int(stmt, col);
 				break;
 			case SQLITE_FLOAT:
 				value[col].type = DOUBLE;
-				value[col].value.double_val =
+				value[col].value.double_value =
 					sqlite3_column_double(stmt, col);
 				break;
 			case SQLITE_TEXT:
-				value[col].type = TEXT;
-				col_value =
+				value[col].type = STRING;
+				col_valueue =
 					(const char*)sqlite3_column_text(stmt, col);
 				col_len = sqlite3_column_bytes(stmt, col) + 1;
-				value[col].value.string_val =
+				value[col].value.string_value =
 					(char*)malloc(sizeof(char) * col_len);
 
-				if (!value[col].value.string_val) {
+				if (!value[col].value.string_value) {
 					ERR_LOG(
 						"Failed to allocate memory for text value");
 					free(value);
 					return ERR_NOMEM;
 				}
 
-				strcpy(value[col].value.string_val, col_value);
+				strcpy(value[col].value.string_value, col_valueue);
 				break;
 			default:
 				WARN_LOG("Unsupported result type: [%d]", col_type);
@@ -439,7 +439,7 @@ int32_t execute_query(db_query* query, db_query_result* result)
 
 		DEBUG_LOG("Allocating [%u] result rows", result->num_rows)
 
-		result->values = (db_value**)malloc(sizeof(db_value*) * result->num_rows);
+		result->values = (budget_value**)malloc(sizeof(budget_value*) * result->num_rows);
 		if (!result->values) {
 			ERR_LOG("Failed to allocate result rows");
 			return ERR_NOMEM;
@@ -479,8 +479,8 @@ void free_results(db_query_result* restrict results) {
 
 	for (uint32_t i = 0; i < results->num_rows; ++i) {
 		for (uint32_t j = 0; j < results->num_cols; ++j) {
-			if (TEXT == results->values[i][j].type) {
-				free(results->values[i][j].value.string_val);
+			if (STRING == results->values[i][j].type) {
+				free(results->values[i][j].value.string_value);
 			}
 		}
 		free(results->values[i]);
@@ -491,10 +491,10 @@ void free_results(db_query_result* restrict results) {
 
 void free_params(query_param* restrict params, uint32_t num_params) {
 	for (uint32_t i = 0; i < num_params; ++i) {
-		if (TEXT == params[i].param.type &&
-			params[i].param.value.string_val) {
-			free(params[i].param.value.string_val);
-			params[i].param.value.string_val = NULL;
+		if (STRING == params[i].param.type &&
+			params[i].param.value.string_value) {
+			free(params[i].param.value.string_value);
+			params[i].param.value.string_value = NULL;
 		}
 	}
 }

@@ -18,12 +18,12 @@ static const char* ERR_TO_STRING[] = {
 	"Err In Use"
 };
 
-#define MAX_ERROR_NUMBER sizeof(ERR_TO_STRING)
+#define MAX_ERROR_NUMBER (sizeof(ERR_TO_STRING) / sizeof(ERR_TO_STRING[0]))
 
 const char* error_to_string(int32_t err) {
-	if (MAX_ERROR_NUMBER < -err) {
+	if (MAX_ERROR_NUMBER < (uint32_t)-err) {
 		ERR_LOG("No string found for error [%d]", err);
-		return "";
+		return "INVALID";
 	}
 
 	return ERR_TO_STRING[-err];
