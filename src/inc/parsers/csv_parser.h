@@ -22,7 +22,7 @@
 struct csv_data {
 	size_t num_rows;
 	size_t num_cols;
-	budget_value** data;
+	char*** data;
 } typedef csv_data;
 
 /** @brief parse_csv_file

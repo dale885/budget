@@ -17,3 +17,11 @@ ar-lib
 sql_test
 budget_db_test
 *.dirstamp
+*.lo
+*.la
+.libs/
+m4/
+libtool
+ltmain.sh
+config.guess
+config.sub

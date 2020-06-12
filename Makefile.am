@@ -7,6 +7,9 @@ noinst_LIBRARIES=				\
 	libsql.a					\
 	libbudget_db.a
 
+lib_LTLIBRARIES=				\
+	libcsv_parser.la
+
 noinst_PROGRAMS=				\
 	budget_app
 
@@ -20,6 +23,13 @@ libsql_a_SOURCES=				\
 
 libbudget_db_a_SOURCES=	\
 	src/budget_db/budget_db.c
+
+libcsv_parser_la_SOURCES=		\
+	src/parsers/csv_parser.c
+libcsv_parser_la_LIBADD=		\
+	-lcommon
+libcsv_parser_la_DEPENDENCIES=	\
+	libcommon.a
 
 budget_app_SOURCES=				\
 	src/main.c
@@ -72,4 +82,6 @@ budget_db_test_DEPENDENCIES=	\
 	libcommon.a
 
 endif
+
+ACLOCAL_AMFLAGS=-I m4
 
