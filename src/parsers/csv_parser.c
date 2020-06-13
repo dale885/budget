@@ -22,7 +22,6 @@ struct csv_parse_data {
 } typedef csv_parse_data;
 
 static size_t get_num_columns(const char* restrict csv_data, size_t csv_length) {
-	bool is_escaped = false;
 	bool in_quotes = false;
 	size_t i;
 	size_t num_columns = 0;
@@ -30,21 +29,25 @@ static size_t get_num_columns(const char* restrict csv_data, size_t csv_length) 
 	for (i = 0; i < csv_length; ++i) {
 		switch (csv_data[i]) {
 			case ',':
-				if (!in_quotes || is_escaped) {
+				if (!in_quotes) {
 					++num_columns;
-					is_escaped = false;
 				}
 				break;
 			case '"':
-				if (in_quotes && is_escaped) {
-					is_escaped = false;
+				if (in_quotes) {
+					if (csv_length > (i + 1)) {
+						if ('"' == csv_data[i + 1]) {
+							++i;
+						}
+					}
 				}
-				else if (in_quotes) {
-					is_escaped = true;
+				else {
+					in_quotes = true;
 				}
 				break;
+			case '\r':
 			case '\n':
-				if (!in_quotes || is_escaped) {
+				if (!in_quotes) {
 					++num_columns;
 					return num_columns;
 				}
@@ -128,15 +131,24 @@ static int32_t parse_field(csv_parse_data* restrict parse_data, char** restrict 
 					done = true;
 				}
 				break;
-			case '\n':
+			case '\r':
 				if (!in_quotes) {
-					done = true;
-					if ('\r' == parse_data->raw_csv_data[i - 1]) {
-						field_ending_size = 2;
+					if (parse_data->data_end > (i + 1)) {
+						if ('\n' == parse_data->raw_csv_data[i + 1]) {
+							++i;
+							field_ending_size = 2;
+						}
 					}
 					else {
 						field_ending_size = 1;
 					}
+					done = true;
+					break;
+				}
+			case '\n':
+				if (!in_quotes) {
+					done = true;
+					field_ending_size = 1;
 				}
 			default:
 				break;
