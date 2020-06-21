@@ -81,6 +81,20 @@ budget_db_test_DEPENDENCIES=	\
 	libsql.a					\
 	libcommon.a
 
+csv_parser_test_SOURCES=		\
+	tests/csv_parser/csv_parser_test.c
+csv_parser_test_CFLAGS=			\
+	$(UNITY_CFLAGS)
+csv_parser_test_LDFLAGS=		\
+	$(UNITY_LDFLAGS)
+csv_parser_test_LDADD=			\
+	-lcsv_parser				\
+	-lcommon					\
+	-lunity
+csv_parser_test_DEPENDENCIES=	\
+	libcsv_parser.la			\
+	libcommon.a
+
 endif
 
 ACLOCAL_AMFLAGS=-I m4
