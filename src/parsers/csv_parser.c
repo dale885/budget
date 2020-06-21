@@ -11,23 +11,26 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-
 #include <parsers/csv_parser.h>
 #include <log.h>
 
-struct csv_parse_data {
+struct csv_parser {
 	size_t data_start;
 	size_t data_end;
+	size_t num_cols;
+	bool has_header;
+	line_end line_ending;
 	char* raw_csv_data;
-} typedef csv_parse_data;
+	size_t csv_size;
+};
 
-static size_t get_num_columns(const char* restrict csv_data, size_t csv_length) {
+void get_num_columns(csv_handle restrict handle) {
 	bool in_quotes = false;
 	size_t i;
 	size_t num_columns = 0;
 
-	for (i = 0; i < csv_length; ++i) {
-		switch (csv_data[i]) {
+	for (i = 0; i < handle->data_end; ++i) {
+		switch (handle->raw_csv_data[i]) {
 			case ',':
 				if (!in_quotes) {
 					++num_columns;
@@ -35,8 +38,8 @@ static size_t get_num_columns(const char* restrict csv_data, size_t csv_length) 
 				break;
 			case '"':
 				if (in_quotes) {
-					if (csv_length > (i + 1)) {
-						if ('"' == csv_data[i + 1]) {
+					if (handle->data_end > (i + 1)) {
+						if ('"' == handle->raw_csv_data[i + 1]) {
 							++i;
 						}
 					}
@@ -48,8 +51,8 @@ static size_t get_num_columns(const char* restrict csv_data, size_t csv_length) 
 			case '\r':
 			case '\n':
 				if (!in_quotes) {
-					++num_columns;
-					return num_columns;
+					handle->num_cols = num_columns + 1;
+					return;
 				}
 				break;
 			default:
@@ -57,53 +60,44 @@ static size_t get_num_columns(const char* restrict csv_data, size_t csv_length) 
 		}
 	}
 
-	return num_columns + 1;
+	handle->num_cols = num_columns + 1;
 }
 
-static size_t get_num_rows(const char* restrict csv_data, size_t csv_length) {
-	bool is_escaped = false;
-	bool in_quotes = false;
-	bool parsing_row = false;
-	size_t i;
-	size_t num_rows = 0;
+static char* get_escaped_field(const char* restrict unescaped_field, const size_t unescpaed_size, const size_t num_escapes) {
+	size_t i, j;
+	size_t escaped_field_size = unescpaed_size - num_escapes;
+	char* escaped_field;
 
-	for (i = 0; i < csv_length; ++i) {
-		switch (csv_data[i]) {
-			case '"':
-				if (in_quotes && is_escaped) {
-					is_escaped = false;
-				}
-				else if (in_quotes) {
-					is_escaped = true;
-				}
-				parsing_row = true;
-				break;
-			case '\n':
-				if (!in_quotes || is_escaped) {
-					++num_rows;
-					parsing_row = false;
-				}
-				break;
-			default:
-				parsing_row = true;
-				break;
+	DEBUG_LOG("Handing [%u] escapes in CSV field", num_escapes);
+	escaped_field = (char*)malloc(sizeof(char) * escaped_field_size + 1);
+
+	for (i = 0, j = 0; i < unescpaed_size && j < escaped_field_size; ++i, ++j) {
+		if ('"' == unescaped_field[i]) {
+			// This should not happen
+			if (i >= unescpaed_size - 1) {
+				ERR_LOG("Found escape character but it is the last character in the field");
+				free(escaped_field);
+				return NULL;
+			}
+
+			++i;
 		}
+
+		escaped_field[j] = unescaped_field[i];
 	}
 
-	return num_rows + (parsing_row ? 1 : 0);
+	escaped_field[escaped_field_size] = '\0';
+
+	return escaped_field;
 }
 
-static int32_t parse_field(csv_parse_data* restrict parse_data, char** restrict data) {
+static int32_t parse_field(csv_handle restrict parse_data, char** restrict data) {
 	bool in_quotes = false;
 	bool done = false;
-	char* escaped_field = NULL;
 	size_t i = parse_data->data_start;
-	size_t j;
-	size_t k;
 	size_t num_escapes = 0;
 	size_t field_ending_size = 1;
 	size_t field_size;
-	size_t escaped_field_size;
 
 	for ( ; i < parse_data->data_end && !done; ++i) {
 		switch (parse_data->raw_csv_data[parse_data->data_start]) {
@@ -180,30 +174,13 @@ static int32_t parse_field(csv_parse_data* restrict parse_data, char** restrict 
 
 	*data[field_size] = '\0';
 
-	if (num_escapes) {
-		DEBUG_LOG("Handing [%u] escapes in CSV field", num_escapes);
-		escaped_field_size = field_size = num_escapes;
-		escaped_field = (char*)malloc(sizeof(char) * escaped_field_size + 1);
+	if (0 != num_escapes) {
+		char* escaped_field = get_escaped_field(*data, field_size, num_escapes); 
 		if (!escaped_field) {
 			ERR_LOG("Failed to allocate memory for escaped field");
 			return ERR_NOMEM;
 		}
 
-		for (j = 0, k = 0; j < field_size && k < escaped_field_size; ++j, ++k) {
-			if ('"' == *data[j]) {
-				// This should not happen
-				if (j >= field_size - 1) {
-					ERR_LOG("Found escape character but it is the last character in the field");
-					return ERR_INVALID;
-				}
-
-				++j;
-			}
-
-			escaped_field[k] = *data[j];
-		}
-
-		escaped_field[escaped_field_size] = '\0';
 		free(*data);
 		*data = escaped_field;
 	}
@@ -216,7 +193,7 @@ static int32_t parse_field(csv_parse_data* restrict parse_data, char** restrict 
 }
 
 
-static int32_t parse_row(csv_parse_data* restrict parse_data, size_t num_columns, char** column_data) {
+static int32_t parse_row(csv_handle restrict parse_data, size_t num_columns, char** column_data) {
 	size_t i;
 	int32_t rc;
 
@@ -237,113 +214,70 @@ static int32_t parse_row(csv_parse_data* restrict parse_data, size_t num_columns
 	return ERR_OK;
 }
 
-static int32_t parse_csv_data(char* restrict raw_csv_data, size_t csv_length, bool has_header, csv_data* restrict data) {
-	int32_t rc = ERR_OK;
-	size_t i;
-	size_t data_start = 0;
-	csv_parse_data parse_data = {0};
+csv_handle csv_open(const char* restrict filename, bool has_header, const line_end* const restrict line_ending) {
 
-	data->num_cols = get_num_columns(raw_csv_data, csv_length);
-	data->num_rows = get_num_rows(raw_csv_data, csv_length);
-
-	if (has_header) {
-		data->num_rows -= 1;
-	}
-
-	data->data = (char***)calloc(sizeof(char**), data->num_rows);
-	if (!data->data) {
-		ERR_LOG("Failed to allocate csv data rows");
-		rc = ERR_NOMEM;
-		goto CLEAN_UP;
-	}
-
-	parse_data.data_end = csv_length;
-	parse_data.raw_csv_data = raw_csv_data;
-
-	for (i = 0; i < data->num_rows; ++i) {
-		if (data_start >= csv_length) {
-			ERR_LOG("Encountered end of CSV data before parsing all rows");
-			rc = ERR_KO;
-			goto CLEAN_UP;
-		}
-
-		if (has_header) {
-			rc = parse_row(&parse_data, data->num_cols, NULL);
-			if (rc) {
-				ERR_LOG("Failed to parse header row");
-				goto CLEAN_UP;
-			}
-		}
-
-		data->data[i] = (char**)calloc(sizeof(char*), data->num_cols);
-		if (!data->data[i]) {
-			ERR_LOG("Failed to allocate column data");
-			rc = ERR_NOMEM;
-			goto CLEAN_UP;
-		}
-
-		rc = parse_row(&parse_data, data->num_cols, data->data[i]);
-		if (rc) {
-			ERR_LOG("Failed to parse row");
-			goto CLEAN_UP;
-		}
-	}
-
-CLEAN_UP:
-	if (rc) {
-		free_csv_data(data);
-	}
-
-	return rc;
-}
-
-int32_t parse_csv_file(const char* filename, bool has_header, csv_data* data) {
-	int32_t rc;
-	int32_t fd;
-	void* map;
+	csv_handle handle = NULL;
+	int32_t fd = -1;
 	struct stat buf;
 
-	DEBUG_LOG("Parsing CSV file [%s]", filename);
-	rc = stat(filename, &buf);
-	if (0 != rc) {
-		ERR_LOG("Failed to stat file [%s]: %m", filename);
-		return rc;
+	DEBUG_LOG("Opening CSV file [%s] for parsing", filename);
+
+	if ( 0 != stat(filename, &buf)) {
+		ERR_LOG("Unable to stat file [%s]: %m", filename);
+		goto CLEAN_UP;
 	}
 
 	fd = open(filename, O_RDONLY);
 	if (0 > fd) {
 		ERR_LOG("Failed to open file [%s]: %m", filename);
-		return fd;
-	}
-
-	map = mmap(NULL, buf.st_size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
-	if (!map) {
-		ERR_LOG("Failed to create memory map of CSV file");
 		goto CLEAN_UP;
 	}
 
-	rc = parse_csv_data(map, buf.st_size / sizeof(char), has_header, data);
-	if (ERR_OK != rc) {
-		ERR_LOG("Failed to parse CSV data");
+	handle = (csv_handle)malloc(sizeof(struct csv_parser));
+	if (!handle) {
+		ERR_LOG("Failed to allocate csv_handle");
 		goto CLEAN_UP;
 	}
+
+	handle->raw_csv_data = mmap(NULL, buf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	if (!handle->raw_csv_data) {
+		ERR_LOG("Failed to map CSV file [%s] to memory", filename);
+		goto CLEAN_UP;
+	}
+
+	handle->csv_size = buf.st_size;
+	handle->has_header = has_header;
+	if (!line_ending) {
+		INFO_LOG("No line ending specified defaulting to DOS line ends");
+		handle->line_ending = dos_line_end;
+	}
+	else {
+		handle->line_ending = *line_ending;
+	}
+	handle->data_start = 0;
+	handle->data_end = handle->csv_size / sizeof(char);
+
+	get_num_columns(handle);
+
+	INFO_LOG("Successfully prepared CSV file [%s] for parsing", filename);
+	INFO_LOG("File size:[%u], has header:[%d], line_endings:[%d]", handle->csv_size, handle->has_header, handle->line_ending);
 
 CLEAN_UP:
-
 	if (0 >= fd) {
 		close(fd);
 	}
 
-	if (map) {
-		munmap(map, buf.st_size);
+	if (handle &&
+		!handle->raw_csv_data) {
+		free(handle);
+		handle = NULL;
 	}
 
-	return ERR_OK;
+	return handle;
 }
 
-void free_csv_data(csv_data* restrict data) {
+void csv_free_data(csv_data* restrict data) {
 	size_t i;
-	size_t j;
 
 	if (!data ||
 		!data->data) {
@@ -351,13 +285,8 @@ void free_csv_data(csv_data* restrict data) {
 		return;
 	}
 
-	DEBUG_LOG("Freeing [%u] rows with [%u] columns of CSV data", data->num_rows, data->num_cols);
-
-	for (i = 0; i < data->num_rows; ++i) {
+	for (i = 0; i < data->num_cols; ++i) {
 		if (data->data[i]) {
-			for (j = 0; j < data->num_cols; ++j) {
-				free(data->data[i][j]);
-			}
 			free(data->data[i]);
 		}
 	}
