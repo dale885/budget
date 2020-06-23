@@ -18,7 +18,7 @@
   * @details
   *		Opaque structure for parsing CSV files iteratively
   */
-typedef struct csv_parser* csv_handle;
+typedef struct csv_handle* csv_handle;
 
 /** @struct csv_data
   *

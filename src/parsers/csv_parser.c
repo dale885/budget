@@ -14,7 +14,7 @@
 #include <parsers/csv_parser.h>
 #include <log.h>
 
-struct csv_parser {
+struct csv_handle {
 	size_t data_start;
 	size_t data_end;
 	size_t num_cols;
@@ -49,6 +49,12 @@ void get_num_columns(csv_handle restrict handle) {
 				}
 				break;
 			case '\r':
+				if (!in_quotes &&
+					mac_line_end == handle->line_ending)
+				{
+					handle->num_cols = num_columns + 1;
+					return;
+				}
 			case '\n':
 				if (!in_quotes) {
 					handle->num_cols = num_columns + 1;
@@ -91,23 +97,23 @@ static char* get_escaped_field(const char* restrict unescaped_field, const size_
 	return escaped_field;
 }
 
-static int32_t parse_field(csv_handle restrict parse_data, char** restrict data) {
+static int32_t parse_field(csv_handle restrict handle, char** restrict data) {
 	bool in_quotes = false;
 	bool done = false;
-	size_t i = parse_data->data_start;
+	size_t i = handle->data_start;
 	size_t num_escapes = 0;
-	size_t field_ending_size = 1;
+	size_t field_ending_size = dos_line_end == handle->line_ending ? 2 : 1;
 	size_t field_size;
 
-	for ( ; i < parse_data->data_end && !done; ++i) {
-		switch (parse_data->raw_csv_data[parse_data->data_start]) {
+	for ( ; i < handle->data_end && !done; ++i) {
+		switch (handle->raw_csv_data[handle->data_start]) {
 			case '"':
 				if (in_quotes) {
-					if (i + 1 >= parse_data->data_end) {
+					if (i + 1 >= handle->data_end) {
 						done = true;
 						break;
 					}
-					if ('"' == parse_data->raw_csv_data[i + 1]) {
+					if ('"' == handle->raw_csv_data[i + 1]) {
 						++num_escapes;
 						++i;
 						break;
@@ -127,22 +133,22 @@ static int32_t parse_field(csv_handle restrict parse_data, char** restrict data)
 				break;
 			case '\r':
 				if (!in_quotes) {
-					if (parse_data->data_end > (i + 1)) {
-						if ('\n' == parse_data->raw_csv_data[i + 1]) {
+					if (mac_line_end == handle->line_ending) {
+						done = true;
+						break;
+					}
+					else if (dos_line_end == handle->line_ending &&
+							handle->data_end > (i + 1)) {
+						if ('\n' == handle->raw_csv_data[i + 1]) {
 							++i;
-							field_ending_size = 2;
+							done = true;
 						}
 					}
-					else {
-						field_ending_size = 1;
-					}
-					done = true;
 					break;
 				}
 			case '\n':
 				if (!in_quotes) {
 					done = true;
-					field_ending_size = 1;
 				}
 			default:
 				break;
@@ -154,7 +160,7 @@ static int32_t parse_field(csv_handle restrict parse_data, char** restrict data)
 		return ERR_INVALID;
 	}
 
-	field_size = i - parse_data->data_start - field_ending_size;
+	field_size = i - handle->data_start - field_ending_size;
 	if (in_quotes) {
 		field_size -= 2;
 	}
@@ -166,10 +172,10 @@ static int32_t parse_field(csv_handle restrict parse_data, char** restrict data)
 	}
 
 	if (in_quotes) {
-		memcpy(*data, parse_data->raw_csv_data + 1, field_size);
+		memcpy(*data, handle->raw_csv_data + 1, field_size);
 	}
 	else {
-		memcpy(*data, parse_data->raw_csv_data, field_size);
+		memcpy(*data, handle->raw_csv_data, field_size);
 	}
 
 	*data[field_size] = '\0';
@@ -187,28 +193,34 @@ static int32_t parse_field(csv_handle restrict parse_data, char** restrict data)
 
 	DEBUG_LOG("Got field [%s]",  *data);
 
-	parse_data->data_start += i;
+	handle->data_start += i;
 
 	return ERR_OK;
 }
 
 
-static int32_t parse_row(csv_handle restrict parse_data, size_t num_columns, char** column_data) {
+static int32_t parse_row(csv_handle restrict handle, char** column_data) {
 	size_t i;
 	int32_t rc;
 
-	for (i = 0; i < num_columns; ++i) {
-		rc = parse_field(parse_data, &column_data[i]);
+	for (i = 0; i < handle->num_cols; ++i) {
+		if ((mac_line_end == handle->line_ending &&
+			'\r' == handle->raw_csv_data[handle->data_start]) ||
+			'\n' == handle->raw_csv_data[handle->data_start]) {
+			ERR_LOG("Reached end of line before reading all columns");
+			return ERR_INVALID;
+		}
+		rc = parse_field(handle, &column_data[i]);
 		if (rc) {
 			ERR_LOG("Failed to parse column");
 			return ERR_KO;
 		}
 	}
 
-	while (parse_data->data_start < parse_data->data_end &&
-		   ('\n' == parse_data->raw_csv_data[parse_data->data_start] ||
-		   '\r' == parse_data->raw_csv_data[parse_data->data_start])) {
-		++parse_data->data_start;
+	while (handle->data_start < handle->data_end &&
+		   ('\n' == handle->raw_csv_data[handle->data_start] ||
+		   '\r' == handle->raw_csv_data[handle->data_start])) {
+		++handle->data_start;
 	}
 
 	return ERR_OK;
@@ -233,7 +245,7 @@ csv_handle csv_open(const char* restrict filename, bool has_header, const line_e
 		goto CLEAN_UP;
 	}
 
-	handle = (csv_handle)malloc(sizeof(struct csv_parser));
+	handle = (csv_handle)malloc(sizeof(struct csv_handle));
 	if (!handle) {
 		ERR_LOG("Failed to allocate csv_handle");
 		goto CLEAN_UP;
@@ -274,6 +286,58 @@ CLEAN_UP:
 	}
 
 	return handle;
+}
+
+csv_data* csv_get_next_row(csv_handle restrict handle) {
+	csv_data* data = NULL;
+
+	if (!handle) {
+		ERR_LOG("Handle is null");
+		return NULL;
+	}
+
+	DEBUG_LOG("Getting next CSV row at offset [%u]", handle->data_start);
+
+	data = (csv_data*)malloc(sizeof(csv_data));
+	if (!data) {
+		ERR_LOG("Failed to create csv_data struct");
+		return NULL;
+	}
+
+	data->num_cols = handle->num_cols;
+	data->data = (char**)malloc(sizeof(char*) * data->num_cols);
+	if (!data->data) {
+		ERR_LOG("Failed to allocate columns");
+		free(data);
+
+		return NULL;
+	}
+
+	if (ERR_OK != parse_row(handle, data->data)) {
+		ERR_LOG("Failed to parse row");
+		csv_free_data(data);
+		free(data);
+		data = NULL;
+	}
+
+	return data;
+}
+
+void csv_close(csv_handle restrict handle) {
+
+	if (!handle) {
+		WARN_LOG("Unable to close null handle");
+	}
+
+	INFO_LOG("Closing csv handle");
+
+	if (handle->raw_csv_data) {
+		munmap(handle->raw_csv_data, handle->csv_size);
+	} else {
+		WARN_LOG("csv data is null");
+	}
+
+	free(handle);
 }
 
 void csv_free_data(csv_data* restrict data) {
