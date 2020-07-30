@@ -25,3 +25,4 @@ libtool
 ltmain.sh
 config.guess
 config.sub
+csv_parser_test
