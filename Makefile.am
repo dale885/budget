@@ -47,7 +47,8 @@ budget_app_DEPENDENCIES=		\
 if ENABLE_UNIT_TESTS
 noinst_PROGRAMS+=				\
 	sql_test					\
-	budget_db_test
+	budget_db_test				\
+	csv_parser_test
 
 sql_test_SOURCES=				\
 	tests/sql/sql_test.c
